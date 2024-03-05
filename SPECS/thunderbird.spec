@@ -23,7 +23,7 @@ function dist_to_rhel_minor(str, start)
   end
   match = string.match(str, ".el8")
   if match then
-     return 9
+     return 10
   end
   match = string.match(str, ".module%+el9.%d+")
   if match then
@@ -35,7 +35,7 @@ function dist_to_rhel_minor(str, start)
   end
   match = string.match(str, ".el9")
   if match then
-     return 3
+     return 4
   end
   return -1
 end}
@@ -134,7 +134,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 115.3.1
+Version: 115.8.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -143,14 +143,19 @@ License: MPLv1.1 or GPLv2+ or LGPLv2+
 ExcludeArch: %{ix86}
 %endif
 %if 0%{?rhel} == 8
+  # Started to ship on aarch64 in RHEL 8.2, on s390x in RHEL 8.3
   %if %{rhel_minor_version} == 1
-ExcludeArch: %{ix86} aarch64 s390x
+ExcludeArch: %{ix86} s390x aarch64
   %else
+    %if %{rhel_minor_version} == 2
+ExcludeArch: %{ix86} s390x
+    %else
 ExcludeArch: %{ix86}
+    %endif
   %endif
 %endif
 %if 0%{?rhel} == 7
-ExcludeArch: aarch64 s390 ppc
+ExcludeArch: aarch64 s390 ppc ppc64
 %endif
 
 # We can't use the official tarball as it contains some test files that use
@@ -160,7 +165,7 @@ ExcludeArch: aarch64 s390 ppc
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}-20230929.tar.xz
+Source1: thunderbird-langpacks-%{version}-20240219.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -212,6 +217,9 @@ Patch152: rhbz-1173156.patch
 Patch154: firefox-nss-addon-hack.patch
 # ARM run-time patch
 Patch155: rhbz-1354671.patch
+
+# ---- Security patches ----
+Patch301: CVE-2023-44488-libvpx.patch
 
 # BUILD REQURES/REQUIRES
 %if %{?system_nss} && !0%{?bundle_nss}
@@ -285,7 +293,7 @@ BuildRequires: rust >= %{rust_version}
 
 %if 0%{?rhel} == 9
 BuildRequires: cargo
-BuildRequires: clang clang-libs llvm
+BuildRequires: clang clang-libs llvm llvm-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: python3-devel
@@ -888,15 +896,15 @@ Mozilla Thunderbird is a standalone mail and newsgroup client.
 %prep
 echo "Build environment"
 echo "--------------------------------------------"
-echo "dist                  %{?dist}"
-echo "RHEL 8 minor version: %{?rhel_minor_version}"
-echo "bundle_nss            %{?bundle_nss}"
-echo "system_nss            %{?system_nss}"
-echo "use_rust_ts           %{?use_rust_ts}"
-echo "use_dts               %{?use_dts}"
-echo "use_nodejs_scl        %{?use_nodejs_scl}"
-echo "use_llvm_ts           %{?use_llvm_ts}"
-echo "use_python3_scl       %{?use_python3_scl}"
+echo "dist                %{?dist}"
+echo "RHEL minor version: %{?rhel_minor_version}"
+echo "bundle_nss          %{?bundle_nss}"
+echo "system_nss          %{?system_nss}"
+echo "use_rust_ts         %{?use_rust_ts}"
+echo "use_dts             %{?use_dts}"
+echo "use_nodejs_scl      %{?use_nodejs_scl}"
+echo "use_llvm_ts         %{?use_llvm_ts}"
+echo "use_python3_scl     %{?use_python3_scl}"
 echo "--------------------------------------------"
 
 %setup -q
@@ -944,6 +952,11 @@ echo "--------------------------------------------"
 %ifarch aarch64
 %patch -P155 -p1 -b .rhbz-1354671
 %endif
+
+# ---- Security patches ----
+cd media/libvpx/libvpx
+%patch -P301 -p1 -b .CVE-2023-44488-libvpx
+cd -
 
 %{__rm} -f .mozconfig
 %{__cp} %{SOURCE10} .mozconfig
@@ -1005,6 +1018,13 @@ echo "ac_add_options --with-mozilla-api-keyfile=`pwd`/mozilla-api-key" >> .mozco
 # It seems that the api key we have is for the safe browsing only
 echo "ac_add_options --with-google-location-service-api-keyfile=`pwd`/google-loc-api-key" >> .mozconfig
 echo "ac_add_options --with-google-safebrowsing-api-keyfile=`pwd`/google-api-key" >> .mozconfig
+
+# May result in empty --with-libclang-path= in earlier versions.
+# So far this is needed only for c8s/c9s.
+%if (0%{?rhel} == 8 && %{rhel_minor_version} >= 10) || (0%{?rhel} == 9 && %{rhel_minor_version} >= 4)
+# Clang 17 upstream's detection fails, tell it where to look.
+echo "ac_add_options --with-libclang-path=`llvm-config --libdir`" >> .mozconfig
+%endif
 
 echo 'export NODEJS="%{_buildrootdir}/bin/node-stdout-nonblocking-wrapper"' >> .mozconfig
 
@@ -1399,9 +1419,7 @@ mkdir -p $RPM_BUILD_ROOT%{_datadir}/metainfo
 %{__cp} -p comm/mail/branding/%{name}/net.thunderbird.Thunderbird.appdata.xml $RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml
 sed -i -e 's|<icon .*|<icon type="stock">thunderbird</icon>|' "$RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml"
 
-#===============================================================================
-
-%clean
+# Clean the created bundled rpms.
 rm -rf %{_srcrpmdir}/libffi*.src.rpm
 find %{_rpmdir} -name "libffi*.rpm" -delete
 rm -rf %{_srcrpmdir}/openssl*.src.rpm
@@ -1410,6 +1428,8 @@ rm -rf %{_srcrpmdir}/nss*.src.rpm
 find %{_rpmdir} -name "nss*.rpm" -delete
 rm -rf %{_srcrpmdir}/nspr*.src.rpm
 find %{_rpmdir} -name "nspr*.rpm" -delete
+
+#===============================================================================
 
 %post
 update-desktop-database &> /dev/null || :
@@ -1494,8 +1514,32 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Fri Feb 09 2024 Release Engineering <releng@openela.org> - 115.3.1
+* Tue Mar 05 2024 Release Engineering <releng@openela.org> - 115.8.0
 - Add OpenELA debranding
+
+* Mon Feb 19 2024 Eike Rathke <erack@redhat.com> - 115.8.0-1
+- Update to 115.8.0 build1
+
+* Mon Jan 22 2024 Eike Rathke <erack@redhat.com> - 115.7.0-1
+- Update to 115.7.0 build1
+
+* Mon Dec 18 2023 Eike Rathke <erack@redhat.com> - 115.6.0-1
+- Update to 115.6.0 build2
+
+* Tue Nov 21 2023 Eike Rathke <erack@redhat.com> - 115.5.0-1
+- Update to 115.5.0 build1
+
+* Wed Oct 25 2023 Eike Rathke <erack@redhat.com> - 115.4.1-1
+- Update to 115.4.1 build1
+
+* Tue Oct 24 2023 Anton Bobrov <abobrov@redhat.com> - 115.4.0-3
+- Update to 115.4.0 build3
+
+* Sat Oct 21 2023 Eike Rathke <erack@redhat.com> - 115.4.0-2
+- Update to 115.4.0 build2
+
+* Fri Oct 20 2023 Eike Rathke <erack@redhat.com> - 115.4.0-1
+- Update to 115.4.0 build1
 
 * Fri Sep 29 2023 Eike Rathke <erack@redhat.com> - 115.3.1-1
 - Update to 115.3.1 build1
