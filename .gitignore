@@ -1,5 +1,5 @@
-SOURCES/thunderbird-langpacks-115.8.0-20240219.tar.xz
 SOURCES/cbindgen-vendor.tar.xz
 SOURCES/nss-3.90.0-2.el8_1.src.rpm
 SOURCES/nss-3.90.0-3.el9_0.src.rpm
-SOURCES/thunderbird-115.8.0.processed-source.tar.xz
+SOURCES/thunderbird-115.7.0.processed-source.tar.xz
+SOURCES/thunderbird-langpacks-115.7.0-20240122.tar.xz
