@@ -134,7 +134,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 115.8.0
+Version: 115.9.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -165,7 +165,7 @@ ExcludeArch: aarch64 s390 ppc ppc64
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}-20240219.tar.xz
+Source1: thunderbird-langpacks-%{version}-20240318.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -220,6 +220,7 @@ Patch155: rhbz-1354671.patch
 
 # ---- Security patches ----
 Patch301: CVE-2023-44488-libvpx.patch
+Patch302: expat-CVE-2023-52425.patch
 
 # BUILD REQURES/REQUIRES
 %if %{?system_nss} && !0%{?bundle_nss}
@@ -957,6 +958,7 @@ echo "--------------------------------------------"
 cd media/libvpx/libvpx
 %patch -P301 -p1 -b .CVE-2023-44488-libvpx
 cd -
+%patch -P302 -p1 -b .expat-CVE-2023-52425
 
 %{__rm} -f .mozconfig
 %{__cp} %{SOURCE10} .mozconfig
@@ -1514,8 +1516,12 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Tue Mar 05 2024 Release Engineering <releng@openela.org> - 115.8.0
+* Tue Mar 26 2024 Release Engineering <releng@openela.org> - 115.9.0
 - Add OpenELA debranding
+
+* Mon Mar 18 2024 Eike Rathke <erack@redhat.com> - 115.9.0-1
+- Update to 115.9.0 build1
+- Fix expat CVE-2023-52425
 
 * Mon Feb 19 2024 Eike Rathke <erack@redhat.com> - 115.8.0-1
 - Update to 115.8.0 build1
