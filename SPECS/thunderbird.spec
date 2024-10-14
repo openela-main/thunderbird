@@ -131,7 +131,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 128.3.0
+Version: 128.3.1
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -159,7 +159,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20240930.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20241009.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -1634,8 +1634,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Oct 07 2024 Release Engineering <releng@openela.org> - 128.3.0
+* Mon Oct 14 2024 Release Engineering <releng@openela.org> - 128.3.1
 - Add OpenELA debranding
+
+* Wed Oct 09 2024 Eike Rathke <erack@redhat.com> - 128.3.1-1
+- Update to 128.3.1
 
 * Mon Sep 30 2024 Jan Horak <jhorak@redhat.com> - 128.3.0-1
 - Update to 127.3.0
