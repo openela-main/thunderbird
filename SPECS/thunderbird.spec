@@ -1634,7 +1634,7 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Nov 04 2024 Release Engineering <releng@openela.org> - 128.4.0
+* Wed Nov 13 2024 Release Engineering <releng@openela.org> - 128.4.0
 - Add OpenELA debranding
 
 * Mon Oct 28 2024 Eike Rathke <erack@redhat.com> - 128.4.0-1
