@@ -35,7 +35,7 @@ function dist_to_rhel_minor(str, start)
   end
   match = string.match(str, ".el9")
   if match then
-     return 5
+     return 6
   end
   match = string.match(str, ".el10_%d+")
   if match then
@@ -131,7 +131,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 128.4.0
+Version: 128.5.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -159,7 +159,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20241028.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20241126.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -1634,8 +1634,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Wed Nov 13 2024 Release Engineering <releng@openela.org> - 128.4.0
+* Mon Dec 02 2024 Release Engineering <releng@openela.org> - 128.5.0
 - Add OpenELA debranding
+
+* Tue Nov 26 2024 Eike Rathke <erack@redhat.com> - 128.5.0-1
+- Update to 128.5.0 build1
 
 * Mon Oct 28 2024 Eike Rathke <erack@redhat.com> - 128.4.0-1
 - Update to 128.4.0 build1
