@@ -87,7 +87,13 @@ end}
 %global nodejs_build_req  nodejs
 
 %if 0%{?rhel} > 7 && 0%{?rhel} < 10
-%global use_gcc_ts        1
+  %global use_gcc_ts      1
+  %if 0%{?rhel} == 9 && %{rhel_minor_version} >= 6
+    # clang depends on gcc-toolset-14-gcc-c++
+    %global gts_version 14
+  %else
+    %global gts_version 13
+  %endif
 %endif
 
 %if 0%{?rhel} == 7
@@ -121,7 +127,7 @@ end}
 # If set to .b2 or .b3 ... the processed source file needs to be renamed before upload, e.g.
 # thunderbird-102.8.0.b2.processed-source.tar.xz
 # When unset use processed source file name as is.
-##global buildnum .b2
+%global buildnum .b3
 
 %bcond_without langpacks
 
@@ -131,8 +137,8 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 128.5.0
-Release: 1%{?dist}
+Version: 128.6.0
+Release: 3%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
 
@@ -159,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20241126.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20250108.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -190,6 +196,10 @@ Patch10: build-ffvpx.patch
 # Due to some failed rpminspect unicode test we had to remove some test files from the tarball
 # To remove the files checksum from .cargo-checksums we need to add this patch
 Patch11: rust-file-removal.patch
+# Patch a few and third_party/rust/neqo-crypto/ like in Firefox.
+Patch12: firefox-system-nss-replace-xyber-with-mlkem.patch
+# Thunderbird has a copy of third_party/rust/neqo-crypto/ in comm/third_party/rust/neqo-crypto/
+Patch13: thunderbird-system-nss-replace-xyber-with-mlkem.patch
 
 # -- Upstreamed patches --
 Patch51: mozilla-bmo1170092.patch
@@ -318,10 +328,12 @@ BuildRequires: zlib-devel
 %endif
 
 %if 0%{?use_gcc_ts}
-BuildRequires: gcc-toolset-13-runtime
-BuildRequires: gcc-toolset-13-binutils
-BuildRequires: gcc-toolset-13-gcc
-BuildRequires: gcc-toolset-13-gcc-plugin-annobin
+BuildRequires: gcc-toolset-%{gts_version}-runtime
+BuildRequires: gcc-toolset-%{gts_version}-binutils
+BuildRequires: gcc-toolset-%{gts_version}-gcc
+BuildRequires: gcc-toolset-%{gts_version}-gcc-plugin-annobin
+# Do not explicitly require gcc-toolset-%%{gts_version}-gcc-g++ instead fail
+# when clang is upgraded to depend on a later toolset and adjust version.
 %endif
 
 %if %{?use_openssl_for_librnp}
@@ -1055,6 +1067,10 @@ echo "--------------------------------------------"
 %endif
 %patch -P10 -p1 -b .build-ffvpx
 %patch -P11 -p1 -b .rust-file-removal
+%if 0%{?rhel} == 10
+%patch -P12 -p1 -b .firefox-system-nss-replace-xyber-with-mlkem
+%patch -P13 -p1 -b .thunderbird-system-nss-replace-xyber-with-mlkem
+%endif
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
@@ -1251,7 +1267,7 @@ function install_rpms_to_current_dir() {
 # Enable toolsets
 set +e
 %if 0%{?use_gcc_ts}
-source scl_source enable gcc-toolset-13
+source scl_source enable gcc-toolset-%{gts_version}
 %endif
 %if 0%{?use_dts}
 source scl_source enable devtoolset-%{dts_version}
@@ -1634,8 +1650,14 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Dec 02 2024 Release Engineering <releng@openela.org> - 128.5.0
+* Thu Jan 09 2025 Release Engineering <releng@openela.org> - 128.6.0
 - Add OpenELA debranding
+
+* Wed Jan 08 2025 Eike Rathke <erack@redhat.com> - 128.6.0-3
+- Update to 128.6.0 build3
+
+* Wed Dec 18 2024 Eike Rathke <erack@redhat.com> - 128.6.0-1
+- Update to 128.6.0 build1
 
 * Tue Nov 26 2024 Eike Rathke <erack@redhat.com> - 128.5.0-1
 - Update to 128.5.0 build1
