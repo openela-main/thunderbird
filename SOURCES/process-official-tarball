@@ -20,6 +20,9 @@ rm -vf ./process-tarball-dir/*/third_party/python/pip/pip-24.0.dist-info/AUTHORS
 rm -vf ./process-tarball-dir/*/comm/third_party/rust/idna/tests/IdnaTestV2.txt
 rm -vr ./process-tarball-dir/*/comm/third_party/rust/wast/tests/parse-fail/confusing*
 
+# We uses system freetype2
+rm -vrf ./process-tarball-dir/*/modules/freetype2
+
 processed_tarball=${1/source/processed-source}
 
 cd ./process-tarball-dir

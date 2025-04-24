@@ -127,7 +127,7 @@ end}
 # If set to .b2 or .b3 ... the processed source file needs to be renamed before upload, e.g.
 # thunderbird-102.8.0.b2.processed-source.tar.xz
 # When unset use processed source file name as is.
-%global buildnum .b5
+%global buildnum .b3
 
 %bcond_without langpacks
 
@@ -137,7 +137,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 128.8.0
+Version: 128.9.0
 Release: 2%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20250305.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20250331.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -380,7 +380,6 @@ Provides: bundled(fathom)
 Provides: bundled(fdlibm)
 Provides: bundled(ffvpx)
 Provides: bundled(fluent.migratetb)
-Provides: bundled(freetype2)
 Provides: bundled(function2)
 Provides: bundled(gbm)
 Provides: bundled(gemmology)
@@ -1555,7 +1554,13 @@ touch $RPM_BUILD_ROOT%{mozappdir}/components/xpti.dat
 # Register as an application to be visible in the software center
 mkdir -p $RPM_BUILD_ROOT%{_datadir}/metainfo
 %{__cp} -p comm/mail/branding/%{name}/net.thunderbird.Thunderbird.appdata.xml $RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml
+%if 0%{?flatpak}
+# don't specify icon for flatpak appdata, icons are correctly named and packaged already
+# as org.mozilla.Thunderbird.png
+sed -i -e 's|<icon .*||' "$RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml"
+%else
 sed -i -e 's|<icon .*|<icon type="stock">thunderbird</icon>|' "$RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml"
+%endif
 
 # Clean the created bundled rpms.
 rm -rf %{_srcrpmdir}/libffi*.src.rpm
@@ -1633,6 +1638,7 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %endif
 %{mozappdir}/glxtest
 %{mozappdir}/vaapitest
+%{mozappdir}/interesting_serverknobs.json
 
 %if !%{?system_nss}
 %exclude %{mozappdir}/libnssckbi.so
@@ -1652,8 +1658,14 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Mar 17 2025 Release Engineering <releng@openela.org> - 128.8.0
+* Thu Apr 24 2025 Release Engineering <releng@openela.org> - 128.9.0
 - Add OpenELA debranding
+
+* Mon Mar 31 2025 Eike Rathke <erack@redhat.com> - 128.9.0-2
+- Update to 128.9.0 build3
+
+* Wed Mar 26 2025 Eike Rathke <erack@redhat.com> - 128.9.0-1
+- Update to 128.9.0 build1
 
 * Wed Mar 05 2025 Eike Rathke <erack@redhat.com> - 128.8.0-2
 - Update to 128.8.0 build5
