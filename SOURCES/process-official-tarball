@@ -22,6 +22,8 @@ rm -vr ./process-tarball-dir/*/comm/third_party/rust/wast/tests/parse-fail/confu
 
 # We uses system freetype2
 rm -vrf ./process-tarball-dir/*/modules/freetype2
+# We use system zlib
+rm -vrf ./process-tarball-dir/*/modules/zlib
 
 processed_tarball=${1/source/processed-source}
 
