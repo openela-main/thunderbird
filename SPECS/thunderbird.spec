@@ -127,7 +127,7 @@ end}
 # If set to .b2 or .b3 ... the processed source file needs to be renamed before upload, e.g.
 # thunderbird-102.8.0.b2.processed-source.tar.xz
 # When unset use processed source file name as is.
-#%%global buildnum .b2
+%global buildnum .b3
 
 %bcond_without langpacks
 
@@ -137,8 +137,8 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 128.12.0
-Release: 1%{?dist}
+Version: 128.13.0
+Release: 3%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
 
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20250630.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20250723.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -1658,8 +1658,17 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Wed Jul 02 2025 Release Engineering <releng@openela.org> - 128.12.0
+* Tue Jul 29 2025 Release Engineering <releng@openela.org> - 128.13.0
 - Add OpenELA debranding
+
+* Wed Jul 23 2025 Eike Rathke <erack@redhat.com> - 128.13.0-3
+- Update to 128.13.0 build3
+
+* Tue Jul 22 2025 Eike Rathke <erack@redhat.com> - 128.13.0-2
+- Update to 128.13.0 build2
+
+* Mon Jul 21 2025 Eike Rathke <erack@redhat.com> - 128.13.0-1
+- Update to 128.13.0 build1
 
 * Mon Jun 30 2025 Eike Rathke <erack@redhat.com> - 128.12.0-1
 - Update to 128.12.0 build1
