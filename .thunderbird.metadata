@@ -1,5 +1,5 @@
 3df8592c69866a0edf78b4153ce78e214f1b1a9474b28b1f860f4a52ca81c1d6 SOURCES/cbindgen-vendor.tar.xz
 cacda79c00fe7518691347a8d4238b05849c7d27ae4950c58144f4fefa2257cd SOURCES/nss-3.101.0-7.el8_2.src.rpm
 1a821c113c09ba2209e0096b0b2553695c6685d1efe2fac68d5dfadc31470abd SOURCES/nss-3.101.0-7.el9_2.src.rpm
-6489836df67afe9c563fd0393b05a606e8c3d78778a06cb6337c7c46c47b8f0e SOURCES/thunderbird-128.12.0esr.processed-source.tar.xz
-1c6928bc7ab76ea2171c486a9f3d548d515fe0722e959f9e6ac956a4b2aa0297 SOURCES/thunderbird-langpacks-128.12.0esr-20250630.tar.xz
+7d4827c42784c772d149298ba7667d1c81af1ace57e8c57533a29827b1c67533 SOURCES/thunderbird-128.13.0esr.b3.processed-source.tar.xz
+a6412eff69ab08a8031bd2f0727037796d6fd568aeb2e536770a5c0bb25aed20 SOURCES/thunderbird-langpacks-128.13.0esr-20250723.tar.xz
