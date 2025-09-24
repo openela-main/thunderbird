@@ -12,6 +12,7 @@ rm -vf ./process-tarball-dir/*/testing/web-platform/tests/css/css-ui/support/cur
 rm -vf ./process-tarball-dir/*/testing/web-platform/tests/conformance-checkers/html-rdfa/0230-novalid.html
 rm -vf ./process-tarball-dir/*/testing/web-platform/tests/conformance-checkers/html-rdfa/0231-isvalid.html
 rm -vf ./process-tarball-dir/*/layout/inspector/tests/chrome/test_fontVariationsAPI.css
+rm -vr ./process-tarball-dir/*/third_party/rust/wast/tests/parse-fail/confusing*
 # A forbidden code point was found in:
 rm -vf ./process-tarball-dir/*/mobile/android/android-components/components/browser/errorpages/src/main/res/values-ar/strings.xml
 rm -vf ./process-tarball-dir/*/mobile/android/android-components/components/feature/addons/src/main/res/values-ur/strings.xml
@@ -19,6 +20,7 @@ rm -vf ./process-tarball-dir/*/third_party/webkit/PerformanceTests/Speedometer3/
 rm -vf ./process-tarball-dir/*/third_party/python/pip/pip-24.0.dist-info/AUTHORS.txt
 rm -vf ./process-tarball-dir/*/comm/third_party/rust/idna/tests/IdnaTestV2.txt
 rm -vr ./process-tarball-dir/*/comm/third_party/rust/wast/tests/parse-fail/confusing*
+rm -vr ./process-tarball-dir/*/third_party/rust/wast/tests/parse-fail/confusing*
 
 # We uses system freetype2
 rm -vrf ./process-tarball-dir/*/modules/freetype2

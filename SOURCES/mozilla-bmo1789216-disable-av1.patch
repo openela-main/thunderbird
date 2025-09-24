@@ -42,32 +42,26 @@ diff -up firefox-128.0/media/ffvpx/libavcodec/codec_list.c.mozilla-bmo1789216-di
 diff -up firefox-128.0/media/ffvpx/libavcodec/moz.build.mozilla-bmo1789216-disable-av1 firefox-128.0/media/ffvpx/libavcodec/moz.build
 --- firefox-128.0/media/ffvpx/libavcodec/moz.build.mozilla-bmo1789216-disable-av1	2024-06-13 11:40:12.669924118 +0200
 +++ firefox-128.0/media/ffvpx/libavcodec/moz.build	2024-06-13 11:45:22.867304151 +0200
-@@ -94,7 +94,6 @@ if not CONFIG['MOZ_FFVPX_AUDIOONLY']:
-         'imgconvert.c',
-         'libaom.c',
-         'libaomenc.c',
--        'libdav1d.c',
-         'libvpxdec.c',
-         'libvpxenc.c',
-         'mathtables.c',
-@@ -119,10 +118,16 @@ if not CONFIG['MOZ_FFVPX_AUDIOONLY']:
-         'vp9recon.c',
+@@ -120,16 +120,15 @@ if not CONFIG['MOZ_FFVPX_AUDIOONLY']:
          'vpx_rac.c',
      ]
--    USE_LIBS += [
--        'dav1d',
--        'media_libdav1d_asm',
--    ]
-+    if CONFIG['MOZ_AV1']:
-+        USE_LIBS += [
-+            'dav1d',
-+            'media_libdav1d_asm',
-+        ]
+ 
+-    if CONFIG["MOZ_SYSTEM_AV1"]:
+-        CFLAGS += CONFIG['MOZ_SYSTEM_LIBDAV1D_CFLAGS']
+-        CFLAGS += CONFIG['MOZ_SYSTEM_LIBAOM_CFLAGS']
+-        OS_LIBS += CONFIG['MOZ_SYSTEM_LIBDAV1D_LIBS']
+-        OS_LIBS += CONFIG['MOZ_SYSTEM_LIBAOM_LIBS']
+-    else:
++    if CONFIG["MOZ_AV1"]:
+         USE_LIBS += [
+             'dav1d',
+             'media_libdav1d_asm',
+         ]
 +        SOURCES += [
 +            'libdav1d.c',
 +        ]
 +
-+
+ 
      if CONFIG["MOZ_WIDGET_TOOLKIT"] == "gtk":
          LOCAL_INCLUDES += ['/media/mozva']
-         SOURCES += [
+
