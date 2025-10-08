@@ -1,0 +1,13 @@
+diff -up thunderbird-128.0/comm/mail/extensions/openpgp/content/$.disable-openpgp thunderbird-128.0/comm/mail/extensions/openpgp/content/$
+diff -up thunderbird-128.0/comm/mail/extensions/openpgp/content/BondOpenPGP.sys.mjs.disable-openpgp thunderbird-128.0/comm/mail/extensions/openpgp/content/BondOpenPGP.sys.mjs
+--- thunderbird-128.0/comm/mail/extensions/openpgp/content/BondOpenPGP.sys.mjs.disable-openpgp	2024-08-13 16:21:15.804595768 +0200
++++ thunderbird-128.0/comm/mail/extensions/openpgp/content/BondOpenPGP.sys.mjs	2024-08-13 16:20:40.900692240 +0200
+@@ -27,6 +27,8 @@ export var BondOpenPGP = {
+   _alreadyTriedInit: false, // if already true, we will not try again
+ 
+   async init() {
++    // We don't have support for the opengpg in rhel ATM.
++    return;
+     if (this._alreadyTriedInit) {
+       // We have previously attempted to init, don't try again.
+       return;
