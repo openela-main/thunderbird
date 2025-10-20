@@ -137,8 +137,8 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.3.0
-Release: 1%{?dist}
+Version: 140.4.0
+Release: 2%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
 
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20250912.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20251013.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -192,14 +192,9 @@ Patch05: build-rhel7-lower-node-min-version.patch
 Patch06: build-ppc64-abiv2.patch
 Patch07: build-rhel7-nasm-dwarf.patch
 Patch09: disable-openpgp-in-thunderbird.patch
-Patch10: build-ffvpx.patch
 # Due to some failed rpminspect unicode test we had to remove some test files from the tarball
 # To remove the files checksum from .cargo-checksums we need to add this patch
 Patch11: rust-file-removal.patch
-# Patch a few and third_party/rust/neqo-crypto/ like in Firefox.
-Patch12: firefox-system-nss-replace-xyber-with-mlkem.patch
-# Thunderbird has a copy of third_party/rust/neqo-crypto/ in comm/third_party/rust/neqo-crypto/
-Patch13: thunderbird-system-nss-replace-xyber-with-mlkem.patch
 Patch14: build-cargo-lock-version.patch
 Patch15: build-system-nss.patch
 Patch16: build-tb-system-nss.patch
@@ -1082,12 +1077,7 @@ echo "--------------------------------------------"
 %if !%{?use_openssl_for_librnp}
 %patch -P9 -p1 -b .disable-openpgp-in-thunderbird
 %endif
-#patch -P10 -p1 -b .build-ffvpx
 %patch -P11 -p1 -b .rust-file-removal
-%if 0%{?rhel} == 10
-#patch -P12 -p1 -b .firefox-system-nss-replace-xyber-with-mlkem
-#patch -P13 -p1 -b .thunderbird-system-nss-replace-xyber-with-mlkem
-%endif
 %patch -P14 -p1 -b .cargo-lock-version
 %patch -P15 -p1 -b .build-system-nss
 %patch -P16 -p1 -b .tb-build-system-nss
@@ -1174,7 +1164,10 @@ echo "ac_add_options --with-librnp-backend=openssl" >> .mozconfig
 echo "ac_add_options --disable-webrtc" >> .mozconfig
 echo "ac_add_options --disable-lto" >> .mozconfig
 %endif
-echo "ac_add_options --disable-lto" >> .mozconfig
+
+%if 0%{?rhel} < 10
+ echo "ac_add_options --disable-lto" >> .mozconfig
+%endif
 
 # AV1 requires newer nasm that was rebased in 8.4
 %if 0%{?rhel} == 7 || (0%{?rhel} == 8 && %{rhel_minor_version} < 4)
@@ -1392,6 +1385,8 @@ echo "export CXX=g++" >> .mozconfig
 echo "export AR=\"gcc-ar\"" >> .mozconfig
 echo "export NM=\"gcc-nm\"" >> .mozconfig
 echo "export RANLIB=\"gcc-ranlib\"" >> .mozconfig
+#Workaround for rust SIGABRT/SIGSEGV
+echo "export MALLOC_MMAP_MAX_=0" >> .mozconfig
 
 MOZ_SMP_FLAGS=-j1
 # On x86_64 architectures, Mozilla can build up to 4 jobs at once in parallel,
@@ -1680,8 +1675,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Thu Sep 18 2025 Release Engineering <releng@openela.org> - 140.3.0
+* Mon Oct 20 2025 Release Engineering <releng@openela.org> - 140.4.0
 - Add OpenELA debranding
+
+* Mon Oct 13 2025 Jan Horak <jhorak@redhat.com> - 140.4.0-2
+- Update to 140.4.0 ESR
 
 * Fri Sep 12 2025 Jan Horak <jhorak@redhat.com> - 140.3.0-1
 - Update to 140.3.0 ESR
