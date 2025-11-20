@@ -137,8 +137,8 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.4.0
-Release: 2%{?dist}
+Version: 140.5.0
+Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
 
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20251013.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20251111.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -177,6 +177,7 @@ Source24: mozilla-api-key
 Source25: thunderbird-symbolic.svg
 Source27: google-api-key
 Source32: node-stdout-nonblocking-wrapper
+Source33: thunderbird.appdata.xml.in
 Source35: google-loc-api-key
 Source401: nss-setup-flags-env.inc
 Source402: nspr-4.36.0-2.el8_2.src.rpm
@@ -201,6 +202,7 @@ Patch16: build-tb-system-nss.patch
 
 # -- Upstreamed patches --
 Patch51: mozilla-bmo1170092.patch
+Patch52: exceptionHandled-for-IO-error-processhandler.patch
 
 # -- Submitted upstream, not merged --
 Patch102: mozilla-bmo1670333.patch
@@ -217,6 +219,20 @@ Patch108: mozilla-bmo1716707-svg.patch
 Patch109: mozilla-bmo1789216-disable-av1.patch
 Patch110: build-libaom.patch
 Patch111: av1-else-condition-add.patch
+
+# ML-DSA support
+# https://phabricator.services.mozilla.com/D262395
+Patch120: thunderbird-integrate-ml-dsa-signature-verification-for-pkix-certificate-chain-validation.patch
+# https://phabricator.services.mozilla.com/D262397
+Patch121: thunderbird-add-ml-dsa-certificate-support-to-certviewer.patch
+# https://phabricator.services.mozilla.com/D264144
+Patch122: thunderbird-enable-ml-dsa-signature-verification-for-certificate-chain-validation.patch
+# RHEL downstream only - adapts to ML-DSA support in NSS from RHEL 10
+Patch123: thunderbird-adapt-ml-dsa-support-to-rhel-nss.patch
+# RHEL downstream only - enable ML-DSA in manager/ssl
+Patch124: thunderbird-enable-ml-dsa-in-manager-ssl.patch
+# RHEL downstream only - add mlkem768-secp256r1 support
+Patch125: thunderbird-add-mlkem768-secp256r1-support.patch
 
 # ---- Fedora specific patches ----
 Patch151: firefox-enable-addons.patch
@@ -1084,6 +1100,7 @@ echo "--------------------------------------------"
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
+%patch -P52 -p1 -b .exceptionHandled-for-IO-error-processhandler
 
 # -- Submitted upstream, not merged --
 %patch -P102 -p1 -b .mozilla-bmo1670333
@@ -1098,6 +1115,16 @@ echo "--------------------------------------------"
 %endif
 %patch -P110 -p1 -b .libaom
 %patch -P111 -p1 -b .av1-else-condition-add
+
+%if 0%{?rhel} >= 10 && %{rhel_minor_version} >= 1
+# ML-DSA support
+%patch -P120 -p1 -b .integrate-ml-dsa-signature-verification-for-pkix-certificate-chain-validation
+%patch -P121 -p1 -b .add-ml-dsa-certificate-support-to-certviewer
+%patch -P122 -p1 -b .enable-ml-dsa-signature-verification-for-certificate-chain-validation
+%patch -P123 -p1 -b .adapt-ml-dsa-support-to-rhel-nss
+%patch -P124 -p1 -b .enable-ml-dsa-in-manager-ssl
+%patch -P125 -p1 -b .add-mlkem768-secp256r1-support
+%endif
 
 # ---- Fedora specific patches ----
 %patch -P151 -p1 -b .addons
@@ -1362,7 +1389,7 @@ MOZ_LINK_FLAGS="-Wl,--no-keep-memory -Wl,--reduce-memory-overheads"
 # __global_ldflags that normally sets this.
 MOZ_LINK_FLAGS="$MOZ_LINK_FLAGS -L%{_libdir}"
 %endif
-%ifarch %{ix86} %{s390x}
+%ifarch %{ix86} s390x
 export RUSTFLAGS="-Cdebuginfo=0"
 echo 'export RUSTFLAGS="-Cdebuginfo=0"' >> .mozconfig
 %endif
@@ -1569,15 +1596,10 @@ touch $RPM_BUILD_ROOT%{mozappdir}/components/xpti.dat
 %endif
 
 # Register as an application to be visible in the software center
-mkdir -p $RPM_BUILD_ROOT%{_datadir}/metainfo
-%{__cp} -p comm/mail/branding/%{name}/net.thunderbird.Thunderbird.appdata.xml $RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml
-%if 0%{?flatpak}
-# don't specify icon for flatpak appdata, icons are correctly named and packaged already
-# as org.mozilla.Thunderbird.png
-sed -i -e 's|<icon .*||' "$RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml"
-%else
-sed -i -e 's|<icon .*|<icon type="stock">thunderbird</icon>|' "$RPM_BUILD_ROOT%{_datadir}/metainfo/thunderbird.appdata.xml"
-%endif
+mkdir -p %{buildroot}%{_datadir}/metainfo
+%{__sed} -e "s/__VERSION__/%{version}/" \
+         -e "s/__DATE__/$(date '+%Y-%m-%d')/" \
+         %{SOURCE33} > %{buildroot}%{_datadir}/metainfo/thunderbird.appdata.xml
 
 # Clean the created bundled rpms.
 rm -rf %{_srcrpmdir}/libffi*.src.rpm
@@ -1588,6 +1610,11 @@ rm -rf %{_srcrpmdir}/nss*.src.rpm
 find %{_rpmdir} -name "nss*.rpm" -delete
 rm -rf %{_srcrpmdir}/nspr*.src.rpm
 find %{_rpmdir} -name "nspr*.rpm" -delete
+
+#===============================================================================
+
+%check
+appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/*.appdata.xml
 
 #===============================================================================
 
@@ -1675,8 +1702,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Oct 20 2025 Release Engineering <releng@openela.org> - 140.4.0
+* Thu Nov 20 2025 Release Engineering <releng@openela.org> - 140.5.0
 - Add OpenELA debranding
+
+* Tue Nov 11 2025 Jan Horak <jhorak@redhat.com> - 140.5.0-1
+- Update to 140.5.0 ESR
 
 * Mon Oct 13 2025 Jan Horak <jhorak@redhat.com> - 140.4.0-2
 - Update to 140.4.0 ESR
