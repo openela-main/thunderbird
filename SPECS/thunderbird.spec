@@ -137,8 +137,8 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.5.0
-Release: 2%{?dist}
+Version: 140.6.0
+Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
 
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20251111.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20251209.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -199,6 +199,7 @@ Patch11: rust-file-removal.patch
 Patch14: build-cargo-lock-version.patch
 Patch15: build-system-nss.patch
 Patch16: build-tb-system-nss.patch
+Patch17: build-workaround-s390x.patch
 
 # -- Upstreamed patches --
 Patch51: mozilla-bmo1170092.patch
@@ -1132,6 +1133,9 @@ echo "--------------------------------------------"
 %ifarch aarch64
 %patch -P155 -p1 -b .rhbz-1354671
 %endif
+%ifarch s390x
+%patch -P17 -p1 -b .build-workaround-s390x
+%endif
 
 # ---- Security patches ----
 
@@ -1446,8 +1450,11 @@ echo "export STRIP=/bin/true" >> .mozconfig
   export PATH=%{_buildrootdir}/%{bundled_install_path}/bin:$PATH
   echo $PKG_CONFIG_PATH
 %endif
-
-./mach build -v 2>&1 || exit 1
+%ifarch s390x
+  setarch s390x -R ./mach build -v 2>&1 || exit 1
+%else
+  ./mach build -v 2>&1 || exit 1
+%endif
 
 #---------------------------------------------------------------------
 %install
@@ -1700,8 +1707,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Thu Nov 20 2025 Release Engineering <releng@openela.org> - 140.5.0
+* Mon Jan 05 2026 Release Engineering <releng@openela.org> - 140.6.0
 - Add OpenELA debranding
+
+* Tue Dec  9 2025 Jan Horak <jhorak@redhat.com> - 140.6.0-1
+- Update to 140.6.0 ESR
 
 * Tue Nov 11 2025 Jan Horak <jhorak@redhat.com> - 140.5.0-2
 - Update to 140.5.0 ESR

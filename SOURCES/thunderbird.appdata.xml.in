@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>thunderbird</id>
+  <id>thunderbird.desktop</id>
   <metadata_license>CC0-1.0</metadata_license>
   <name>Thunderbird</name>
   <summary>Thunderbird is a free and open source email, newsfeed, chat, and calendaring client</summary>
@@ -35,6 +35,15 @@
   <project_group>Mozilla</project_group>
   <project_license>MPL-2.0</project_license>
   <developer_name>Thunderbird Project</developer_name>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/thunderbird/flatpak-screenshots/main/image_1.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/thunderbird/flatpak-screenshots/main/image_2.png</image>
+    </screenshot>
+  </screenshots>
 
   <mimetypes>
     <mimetype>message/rfc822</mimetype>
