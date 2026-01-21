@@ -137,7 +137,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.6.0
+Version: 140.7.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20251209.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260112.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -200,6 +200,7 @@ Patch14: build-cargo-lock-version.patch
 Patch15: build-system-nss.patch
 Patch16: build-tb-system-nss.patch
 Patch17: build-workaround-s390x.patch
+Patch18: build-annobin-fix.patch
 
 # -- Upstreamed patches --
 Patch51: mozilla-bmo1170092.patch
@@ -378,7 +379,6 @@ Provides: bundled(bergamot-translator)
 Provides: bundled(brotli)
 Provides: bundled(bspatch)
 Provides: bundled(cfworker)
-Provides: bundled(chromium)
 Provides: bundled(cld2)
 Provides: bundled(content)
 Provides: bundled(content_analysis_sdk)
@@ -1098,6 +1098,7 @@ echo "--------------------------------------------"
 %patch -P14 -p1 -b .cargo-lock-version
 %patch -P15 -p1 -b .build-system-nss
 %patch -P16 -p1 -b .tb-build-system-nss
+%patch -P18 -p1 -b .annobin-fix
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
@@ -1163,9 +1164,12 @@ echo "ac_add_options --enable-debug" >> .mozconfig
 echo "ac_add_options --disable-optimize" >> .mozconfig
 %else
 %global optimize_flags "none"
-%ifarch s390x
-%global optimize_flags "-g -O1"
+%if 0%{?rhel} < 10
+  %ifarch s390x
+   %global optimize_flags "-g -O1"
+  %endif
 %endif
+
 %ifarch ppc64le aarch64
 %global optimize_flags "-g -O2"
 %endif
@@ -1709,8 +1713,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Dec 22 2025 Release Engineering <releng@openela.org> - 140.6.0
+* Wed Jan 21 2026 Release Engineering <releng@openela.org> - 140.7.0
 - Add OpenELA debranding
+
+* Mon Jan 12 2026 Jan Horak <jhorak@redhat.com> - 140.7.0-1
+- Update to 140.7.0 ESR
 
 * Tue Dec  9 2025 Jan Horak <jhorak@redhat.com> - 140.6.0-1
 - Update to 140.6.0 ESR
