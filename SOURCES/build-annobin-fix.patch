@@ -1,0 +1,14 @@
+diff -up thunderbird-140.5.0/comm/third_party/rnp/moz.build.annobin-fix thunderbird-140.5.0/comm/third_party/rnp/moz.build
+--- thunderbird-140.5.0/comm/third_party/rnp/moz.build.annobin-fix	2025-12-15 09:23:29.339518965 +0100
++++ thunderbird-140.5.0/comm/third_party/rnp/moz.build	2025-12-15 09:24:18.638422349 +0100
+@@ -42,6 +42,10 @@ COMPILE_FLAGS["WARNINGS_CFLAGS"] += [
+     "-Wno-unused-parameter",
+     "-Wno-missing-field-initializers",
+ ]
++COMPILE_FLAGS["OS_CFLAGS"] += [
++    "-fstack-clash-protection",
++    "-fstack-protector-strong",
++]
+ 
+ if CONFIG["CC_TYPE"] == "clang-cl":
+     CXXFLAGS += [
