@@ -43,7 +43,7 @@ function dist_to_rhel_minor(str, start)
   end
   match = string.match(str, ".el10")
   if match then
-     return 1
+     return 2
   end
   return -1
 end}
@@ -137,8 +137,8 @@ end}
 
 Summary:        Mozilla Thunderbird mail/newsgroup client
 Name:           thunderbird
-Version:        140.7.0
-Release:        1%{?dist}
+Version:        140.8.0
+Release:        2%{?dist}
 URL:            http://www.mozilla.org/projects/thunderbird/
 License:        MPLv1.1 or GPLv2+ or LGPLv2+
 
@@ -165,7 +165,7 @@ ExcludeArch:    %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0:        thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1:        thunderbird-langpacks-%{version}%{?pre_version}-20260112.tar.xz
+Source1:        thunderbird-langpacks-%{version}%{?pre_version}-20260223.tar.xz
 %endif
 Source2:        cbindgen-vendor.tar.xz
 Source3:        process-official-tarball
@@ -200,6 +200,8 @@ Patch14:        build-cargo-lock-version.patch
 Patch15:        build-system-nss.patch
 Patch16:        build-tb-system-nss.patch
 Patch17:        build-workaround-s390x.patch
+Patch18:        build-annobin-fix.patch
+Patch19:        build-min-lexical.patch
 
 # -- Upstreamed patches --
 Patch51:       mozilla-bmo1170092.patch
@@ -459,7 +461,8 @@ Provides: bundled(wllama)
 Provides: bundled(woff2)
 Provides: bundled(xsimd)
 Provides: bundled(xz-embedded)
-Provides: bundled(zlib)
+#Not used when with-system-zlib
+#Provides: bundled(zlib)
 Provides: bundled(zstd)
 Provides: bundled(Zycore)
 Provides: bundled(Zydis)
@@ -476,7 +479,10 @@ Provides: bundled(libotr)
 Provides: bundled(qrcode)
 Provides: bundled(rnp)
 Provides: bundled(sax-js)
-Provides: bundled(zlib)
+#Not used when with-system-zlib
+#Provides: bundled(zlib)
+#Not used when with-system-bz2
+#Provides: bundled(bzip2)
 
 %if 0%{?bundle_nss}
 Provides: bundled(nss) = %{nss_version}
@@ -1062,6 +1068,7 @@ Mozilla Thunderbird is a standalone mail and newsgroup client.
 echo "Build environment"
 echo "--------------------------------------------"
 echo "dist                %{?dist}"
+echo "RHEL major version: %{?rhel}"
 echo "RHEL minor version: %{?rhel_minor_version}"
 echo "bundle_nss          %{?bundle_nss}"
 echo "system_nss          %{?system_nss}"
@@ -1097,6 +1104,8 @@ echo "--------------------------------------------"
 %patch -P14 -p1 -b .cargo-lock-version
 %patch -P15 -p1 -b .build-system-nss
 %patch -P16 -p1 -b .tb-build-system-nss
+%patch -P18 -p1 -b .annobin-fix
+%patch -P19 -p1 -b .min-lexical
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
@@ -1162,9 +1171,13 @@ echo "ac_add_options --enable-debug" >> .mozconfig
 echo "ac_add_options --disable-optimize" >> .mozconfig
 %else
 %global optimize_flags "none"
-%ifarch s390x
-%global optimize_flags "-g -O1"
+
+%if 0%{?rhel} < 10
+  %ifarch s390x
+    %global optimize_flags "-g -O1"
+  %endif
 %endif
+
 %ifarch ppc64le aarch64
 %global optimize_flags "-g -O2"
 %endif
@@ -1708,6 +1721,9 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
+* Mon Feb 23 2026 Jan Horak <jhorak@redhat.com> - 140.8.0-2
+- Update to 140.8.0 ESR
+
 * Mon Jan 12 2026 Jan Horak <jhorak@redhat.com> - 140.7.0-1
 - Update to 140.7.0 ESR
 
