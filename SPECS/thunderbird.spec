@@ -35,7 +35,7 @@ function dist_to_rhel_minor(str, start)
   end
   match = string.match(str, ".el9")
   if match then
-     return 7
+     return 9
   end
   match = string.match(str, ".el10_%d+")
   if match then
@@ -43,7 +43,7 @@ function dist_to_rhel_minor(str, start)
   end
   match = string.match(str, ".el10")
   if match then
-     return 2
+     return 3
   end
   return -1
 end}
@@ -137,7 +137,7 @@ end}
 
 Summary:        Mozilla Thunderbird mail/newsgroup client
 Name:           thunderbird
-Version:        140.10.0
+Version:        140.10.1
 Release:        1%{?dist}
 URL:            http://www.mozilla.org/projects/thunderbird/
 License:        MPLv1.1 or GPLv2+ or LGPLv2+
@@ -165,7 +165,7 @@ ExcludeArch:    %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0:        thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1:        thunderbird-langpacks-%{version}%{?pre_version}-20260421.tar.xz
+Source1:        thunderbird-langpacks-%{version}%{?pre_version}-20260511.tar.xz
 %endif
 Source2:        cbindgen-vendor.tar.xz
 Source3:        process-official-tarball
@@ -202,6 +202,8 @@ Patch16:        build-tb-system-nss.patch
 Patch17:        build-workaround-s390x.patch
 Patch18:        build-annobin-fix.patch
 Patch19:        build-min-lexical.patch
+Patch20:        build-bindgen-0.72.1.patch
+Patch21:        build-ffvpx-failures.patch
 
 # -- Upstreamed patches --
 Patch51:       mozilla-bmo1170092.patch
@@ -473,9 +475,7 @@ Provides: bundled(asn1js)
 Provides: bundled(fluent.migratetb)
 Provides: bundled(icaljs)
 Provides: bundled(json-c)
-Provides: bundled(libgcrypt)
 Provides: bundled(libgpg-error)
-Provides: bundled(libotr)
 Provides: bundled(qrcode)
 Provides: bundled(rnp)
 Provides: bundled(sax-js)
@@ -1068,7 +1068,6 @@ Mozilla Thunderbird is a standalone mail and newsgroup client.
 echo "Build environment"
 echo "--------------------------------------------"
 echo "dist                %{?dist}"
-echo "RHEL major version: %{?rhel}"
 echo "RHEL minor version: %{?rhel_minor_version}"
 echo "bundle_nss          %{?bundle_nss}"
 echo "system_nss          %{?system_nss}"
@@ -1106,6 +1105,11 @@ echo "--------------------------------------------"
 %patch -P16 -p1 -b .tb-build-system-nss
 %patch -P18 -p1 -b .annobin-fix
 %patch -P19 -p1 -b .min-lexical
+
+%if (0%{?rhel} == 10 && %{rhel_minor_version} > 2)
+%patch -P20 -p1 -b .bindgen-llvm22
+%endif
+%patch -P21 -p1 -b .build-ffvpx-failures
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
@@ -1171,10 +1175,9 @@ echo "ac_add_options --enable-debug" >> .mozconfig
 echo "ac_add_options --disable-optimize" >> .mozconfig
 %else
 %global optimize_flags "none"
-
 %if 0%{?rhel} < 10
   %ifarch s390x
-    %global optimize_flags "-g -O1"
+   %global optimize_flags "-g -O1"
   %endif
 %endif
 
@@ -1721,6 +1724,9 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
+* Mon May 11 2026 Jan Horak <jhorak@redhat.com> - 140.10.1-1
+- Update to 140.10.1 ESR
+
 * Tue Apr 21 2026 Jan Horak <jhorak@redhat.com> - 140.10.0-1
 - Update to 140.10.0 ESR
 
@@ -1730,7 +1736,7 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 * Mon Mar 23 2026 Jan Horak <jhorak@redhat.com> - 140.9.0-1
 - Update to 140.9.0 ESR
 
-* Mon Feb 23 2026 Jan Horak <jhorak@redhat.com> - 140.8.0-2
+* Mon Feb 23 2026 Jan Horak <jhorak@redhat.com> - 140.8.0-1
 - Update to 140.8.0 ESR
 
 * Mon Jan 12 2026 Jan Horak <jhorak@redhat.com> - 140.7.0-1
@@ -1756,6 +1762,9 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 * Fri Aug 15 2025 Jan Grulich <jgrulich@redhat.com> - 128.14.0-1
 - Update to 128.14.0 build1
+
+* Tue Aug 05 2025 Tomas Popela <tpopela@redhat.com> - 128.13.0-4
+- Bump the NSS requirements as the rebased NSS is already shipped in c10s
 
 * Wed Jul 23 2025 Eike Rathke <erack@redhat.com> - 128.13.0-3
 - Update to 128.13.0 build3
