@@ -21,7 +21,10 @@ rm -vf ./process-tarball-dir/*/third_party/python/pip/pip-24.0.dist-info/AUTHORS
 rm -vf ./process-tarball-dir/*/dom/locks/test/crashtests/1908240.js
 rm -vf ./process-tarball-dir/*/comm/third_party/rust/idna/tests/IdnaTestV2.txt
 rm -vr ./process-tarball-dir/*/comm/third_party/rust/wast/tests/parse-fail/confusing*
+rm -vr ./process-tarball-dir/*/comm/third_party/libotr*
+rm -vr ./process-tarball-dir/*/comm/third_party/libgcrypt*
 rm -vr ./process-tarball-dir/*/third_party/rust/wast/tests/parse-fail/confusing*
+rm -vr ./process-tarball-dir/*/layout/base/crashtests/496011-1.xhtm
 
 # We uses system freetype2
 rm -vrf ./process-tarball-dir/*/modules/freetype2
