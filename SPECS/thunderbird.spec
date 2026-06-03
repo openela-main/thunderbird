@@ -137,7 +137,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.10.1
+Version: 140.11.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -165,7 +165,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260511.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260521.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -203,7 +203,6 @@ Patch17: build-workaround-s390x.patch
 Patch18: build-annobin-fix.patch
 Patch19: build-min-lexical.patch
 Patch20: build-bindgen-0.72.1.patch
-Patch21: build-ffvpx-failures.patch
 
 # -- Upstreamed patches --
 Patch51: mozilla-bmo1170092.patch
@@ -1110,7 +1109,6 @@ echo "--------------------------------------------"
 %if (0%{?rhel} == 10 && %{rhel_minor_version} > 2)
 %patch -P20 -p1 -b .bindgen-llvm22
 %endif
-%patch -P21 -p1 -b .build-ffvpx-failures
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
@@ -1725,8 +1723,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Tue May 26 2026 Release Engineering <releng@openela.org> - 140.10.1
+* Wed Jun 03 2026 Release Engineering <releng@openela.org> - 140.11.0
 - Add OpenELA debranding
+
+* Thu May 21 2026 Jan Horak <jhorak@redhat.com> - 140.11.0-1
+- Update to 140.11.0 ESR
 
 * Mon May 11 2026 Jan Horak <jhorak@redhat.com> - 140.10.1-1
 - Update to 140.10.1 ESR
