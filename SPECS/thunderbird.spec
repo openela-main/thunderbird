@@ -75,6 +75,14 @@ end}
 %global nspr_version_max  4.37
 %global nss_version       3.112
 %global nss_version_max   3.113
+%if 0%{?rhel} >= 10 && 0%{?rhel_minor_version} > 2
+%global nss_version_max   3.125
+%global nspr_version_max  4.40
+%endif
+%if 0%{?rhel} == 9 && 0%{?rhel_minor_version} > 8
+%global nss_version_max   3.125
+%global nspr_version_max  4.40
+%endif
 %global rust_version      1.84
 %global system_libvpx     0
 
@@ -137,7 +145,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.12.0
+Version: 140.13.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -165,7 +173,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260615.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260722.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -238,6 +246,7 @@ Patch123: thunderbird-adapt-ml-dsa-support-to-rhel-nss.patch
 Patch124: thunderbird-enable-ml-dsa-in-manager-ssl.patch
 # RHEL downstream only - add mlkem768-secp256r1 support
 Patch125: thunderbird-add-mlkem768-secp256r1-support.patch
+Patch126: thunderbird-add-mlkem768-secp256r1-support-nss-3.124.patch
 
 # ---- Fedora specific patches ----
 Patch151: firefox-enable-addons.patch
@@ -1133,9 +1142,17 @@ echo "--------------------------------------------"
 %patch -P120 -p1 -b .integrate-ml-dsa-signature-verification-for-pkix-certificate-chain-validation
 %patch -P121 -p1 -b .add-ml-dsa-certificate-support-to-certviewer
 %patch -P122 -p1 -b .enable-ml-dsa-signature-verification-for-certificate-chain-validation
+%if 0%{?rhel_minor_version} <= 2
 %patch -P123 -p1 -b .adapt-ml-dsa-support-to-rhel-nss
+%endif
 %patch -P124 -p1 -b .enable-ml-dsa-in-manager-ssl
+
+%if 0%{?rhel_minor_version} <= 2
 %patch -P125 -p1 -b .add-mlkem768-secp256r1-support
+%else
+%patch -P126 -p1 -b .add-mlkem768-secp256r1-support-nss-3.124
+%endif
+
 %endif
 
 # ---- Fedora specific patches ----
@@ -1723,8 +1740,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Tue Jun 30 2026 Release Engineering <releng@openela.org> - 140.12.0
+* Tue Aug 04 2026 Release Engineering <releng@openela.org> - 140.13.0
 - Add OpenELA debranding
+
+* Wed Jul 22 2026 Jan Horak <jhorak@redhat.com> - 140.13.0-1
+- Update to 140.13.0 ESR
 
 * Mon Jun 15 2026 Jan Horak <jhorak@redhat.com> - 140.12.0-1
 - Update to 140.12.0 ESR
