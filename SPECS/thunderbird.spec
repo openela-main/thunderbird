@@ -75,12 +75,16 @@ end}
 %global nspr_version_max  4.37
 %global nss_version       3.112
 %global nss_version_max   3.113
-%if 0%{?rhel} >= 10 && 0%{?rhel_minor_version} > 2
+%if 0%{?rhel} >= 10 && 0%{?rhel_minor_version} >= 2
+%global nss_version       3.124
 %global nss_version_max   3.125
+%global nspr_version      4.39
 %global nspr_version_max  4.40
 %endif
-%if 0%{?rhel} == 9 && 0%{?rhel_minor_version} > 8
+%if 0%{?rhel} == 9 && 0%{?rhel_minor_version} >= 8
+%global nss_version       3.124
 %global nss_version_max   3.125
+%global nspr_version      4.39
 %global nspr_version_max  4.40
 %endif
 %global rust_version      1.84
@@ -145,7 +149,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 140.14.0
+Version: 140.16.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -173,7 +177,7 @@ ExcludeArch: %{ix86}
 #Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260818.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20260918.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -211,6 +215,7 @@ Patch17: build-workaround-s390x.patch
 Patch18: build-annobin-fix.patch
 Patch19: build-min-lexical.patch
 Patch20: build-bindgen-0.72.1.patch
+Patch21: D311145-rust-target.diff
 
 # -- Upstreamed patches --
 Patch51: mozilla-bmo1170092.patch
@@ -1110,14 +1115,28 @@ echo "--------------------------------------------"
 %endif
 %patch -P11 -p1 -b .rust-file-removal
 %patch -P14 -p1 -b .cargo-lock-version
+
+%if %{?system_nss}
+%if (0%{?rhel} == 10 && %{rhel_minor_version} < 2)
 %patch -P15 -p1 -b .build-system-nss
 %patch -P16 -p1 -b .tb-build-system-nss
+%endif
+%if (0%{?rhel} == 9 && %{rhel_minor_version} < 8)
+%patch -P15 -p1 -b .build-system-nss
+%patch -P16 -p1 -b .tb-build-system-nss
+%endif
+%endif
+
 %patch -P18 -p1 -b .annobin-fix
 %patch -P19 -p1 -b .min-lexical
 
 %if (0%{?rhel} == 10 && %{rhel_minor_version} > 2)
 %patch -P20 -p1 -b .bindgen-llvm22
 %endif
+%if (0%{?rhel} == 9 && %{rhel_minor_version} > 8)
+%patch -P20 -p1 -b .bindgen-llvm22
+%endif
+%patch -P21 -p1 -b .D311145-rust-target
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
@@ -1142,12 +1161,12 @@ echo "--------------------------------------------"
 %patch -P120 -p1 -b .integrate-ml-dsa-signature-verification-for-pkix-certificate-chain-validation
 %patch -P121 -p1 -b .add-ml-dsa-certificate-support-to-certviewer
 %patch -P122 -p1 -b .enable-ml-dsa-signature-verification-for-certificate-chain-validation
-%if 0%{?rhel_minor_version} <= 2
+%if 0%{?rhel_minor_version} < 2
 %patch -P123 -p1 -b .adapt-ml-dsa-support-to-rhel-nss
 %endif
 %patch -P124 -p1 -b .enable-ml-dsa-in-manager-ssl
 
-%if 0%{?rhel_minor_version} <= 2
+%if 0%{?rhel_minor_version} < 2
 %patch -P125 -p1 -b .add-mlkem768-secp256r1-support
 %else
 %patch -P126 -p1 -b .add-mlkem768-secp256r1-support-nss-3.124
@@ -1740,8 +1759,14 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Tue Sep 08 2026 Release Engineering <releng@openela.org> - 140.14.0
+* Thu Sep 24 2026 Release Engineering <releng@openela.org> - 140.16.0
 - Add OpenELA debranding
+
+* Fri Sep 18 2026 Jan Horak <jhorak@redhat.com> - 140.16.0-1
+- Update to 140.16.0 ESR
+
+* Wed Sep  9 2026 Jan Horak <jhorak@redhat.com> - 140.15.0-1
+- Update to 140.15.0 ESR
 
 * Tue Aug 18 2026 Jan Horak <jhorak@redhat.com> - 140.14.0-1
 - Update to 140.14.0 ESR
