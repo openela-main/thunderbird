@@ -58,37 +58,28 @@ end}
   %if %{rhel_minor_version} <= 8
     %global bundle_nss        1
     %global system_nss        1
-    %global _build_id_links none
   %endif
 %endif
+
 %if 0%{?rhel} == 9
   %if %{rhel_minor_version} < 6
     %global bundle_nss        1
     %global system_nss        1
-    %global _build_id_links none
   %endif
 %endif
 
 %global dts_version       11
 %global llvm_version      7.0
-%global nspr_version      4.36
-%global nspr_version_max  4.37
-%global nss_version       3.112
-%global nss_version_max   3.113
-%if 0%{?rhel} >= 10 && 0%{?rhel_minor_version} >= 2
-%global nss_version       3.124
-%global nss_version_max   3.125
 %global nspr_version      4.39
 %global nspr_version_max  4.40
-%endif
-%if 0%{?rhel} == 9 && 0%{?rhel_minor_version} >= 8
 %global nss_version       3.124
 %global nss_version_max   3.125
-%global nspr_version      4.39
-%global nspr_version_max  4.40
-%endif
 %global rust_version      1.84
+%global system_libjpeg    0
 %global system_libvpx     0
+%if 0%{?rhel} >= 9
+%global system_libjpeg    1
+%endif
 
 # Toolsets setup
 %global use_dts           0
@@ -99,13 +90,8 @@ end}
 %global nodejs_build_req  nodejs
 
 %if 0%{?rhel} > 7 && 0%{?rhel} < 10
-  %global use_gcc_ts      1
-  %if (0%{?rhel} == 9 && %{rhel_minor_version} >= 6) || (0%{?rhel} == 8 && %{rhel_minor_version} >= 10)
-    # clang depends on gcc-toolset-14-gcc-c++
-    %global gts_version 14
-  %else
-    %global gts_version 14
-  %endif
+  %global use_gcc_ts       1
+  %global gts_version      14
 %endif
 
 %if 0%{?rhel} == 7
@@ -131,15 +117,15 @@ end}
 
 
 %define thunderbird_app_id \{3550f703-e582-4d05-9a08-453d09bdfdc6\}
-%define mozappdir    %{_libdir}/thunderbird
-%global langpackdir   %{mozappdir}/extensions
+%global mozappdir            %{_libdir}/thunderbird
+%global langpackdir          %{mozappdir}/extensions
 %define bundled_install_path %{mozappdir}/bundled
 %global pre_version          esr
 # Workaround the dreaded "upstream source file changed content" rpminspect failure.
 # If set to .b2 or .b3 ... the processed source file needs to be renamed before upload, e.g.
 # thunderbird-102.8.0.b2.processed-source.tar.xz
 # When unset use processed source file name as is.
-#global buildnum .b2
+#%%global buildnum .b2
 
 %bcond_without langpacks
 
@@ -149,7 +135,7 @@ end}
 
 Summary:        Mozilla Thunderbird mail/newsgroup client
 Name:           thunderbird
-Version:        140.17.0
+Version:        153.5.0
 Release:        1%{?dist}
 URL:            http://www.mozilla.org/projects/thunderbird/
 License:        MPLv1.1 or GPLv2+ or LGPLv2+
@@ -174,10 +160,10 @@ ExcludeArch:    %{ix86}
 # licenses that are rejected by Red Hat Legal.
 # The official tarball has to be always processed by the process-official-tarball
 # script
-#Source0:        https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
+# Link to original tarball: https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0:        thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1:        thunderbird-langpacks-%{version}%{?pre_version}-20261002.tar.xz
+Source1:        thunderbird-langpacks-%{version}%{?pre_version}-20261013.tar.xz
 %endif
 Source2:        cbindgen-vendor.tar.xz
 Source3:        process-official-tarball
@@ -199,29 +185,22 @@ Source404:      nss-3.112.0-1.el9_4.src.rpm
 # ---- RHEL specific patches ---
 # -- Downstream only --
 Patch01:        build-disable-elfhack.patch
-Patch02:        firefox-gcc-build.patch
 Patch03:        build-big-endian-errors.patch
-Patch05:        build-rhel7-lower-node-min-version.patch
-Patch06:        build-ppc64-abiv2.patch
-Patch07:        build-rhel7-nasm-dwarf.patch
-Patch09:        disable-openpgp-in-thunderbird.patch
+Patch14:        build-nss-version.patch
+Patch18:        gb18030-detect.patch
+
+# - Thunderbird specific -
+Patch21:        disable-openpgp-in-thunderbird.patch
 # Due to some failed rpminspect unicode test we had to remove some test files from the tarball
 # To remove the files checksum from .cargo-checksums we need to add this patch
-Patch11:        rust-file-removal.patch
-Patch14:        build-cargo-lock-version.patch
-Patch15:        build-system-nss.patch
-Patch16:        build-tb-system-nss.patch
-Patch17:        build-workaround-s390x.patch
-Patch18:        build-annobin-fix.patch
-Patch19:        build-min-lexical.patch
-Patch20:        build-bindgen-0.72.1.patch
+Patch22:        rust-file-removal.patch
+Patch23:        build-cargo-lock-version.patch
+Patch24:        build-annobin-fix.patch
 
 # -- Upstreamed patches --
-Patch51:       mozilla-bmo1170092.patch
-Patch52:       exceptionHandled-for-IO-error-processhandler.patch
+Patch51:        mozilla-bmo1170092.patch
 
 # -- Submitted upstream, not merged --
-Patch102:       mozilla-bmo1670333.patch
 # Big endian fix
 Patch103:       mozilla-bmo1504834-part1.patch
 Patch104:       mozilla-bmo1504834-part3.patch
@@ -234,7 +213,7 @@ Patch107:       mozilla-bmo1716707-swizzle.patch
 Patch108:       mozilla-bmo1716707-svg.patch
 Patch109:       mozilla-bmo1789216-disable-av1.patch
 Patch110:       build-libaom.patch
-Patch111:	av1-else-condition-add.patch
+Patch111:       av1-else-condition-add.patch
 
 # ML-DSA support
 # https://phabricator.services.mozilla.com/D262395
@@ -243,24 +222,37 @@ Patch120:       thunderbird-integrate-ml-dsa-signature-verification-for-pkix-cer
 Patch121:       thunderbird-add-ml-dsa-certificate-support-to-certviewer.patch
 # https://phabricator.services.mozilla.com/D264144
 Patch122:       thunderbird-enable-ml-dsa-signature-verification-for-certificate-chain-validation.patch
-# RHEL downstream only - adapts to ML-DSA support in NSS from RHEL 10
-Patch123:       thunderbird-adapt-ml-dsa-support-to-rhel-nss.patch
 # RHEL downstream only - enable ML-DSA in manager/ssl
-Patch124:       thunderbird-enable-ml-dsa-in-manager-ssl.patch
+Patch123:       thunderbird-enable-ml-dsa-in-manager-ssl.patch
 # RHEL downstream only - add mlkem768-secp256r1 support
-Patch125:       thunderbird-add-mlkem768-secp256r1-support.patch
-Patch126:       thunderbird-add-mlkem768-secp256r1-support-nss-3.124.patch
+Patch124:       thunderbird-add-mlkem768-secp256r1-support.patch
 # RHEL-252227 - Firefox ML-DSA Certificate Validation Bug
 # Follow-up for https://phabricator.services.mozilla.com/D264144, addressing
 # some comments mentioned in the review
-Patch127:       firefox-fix-ml-dsa-certificate-signature-algorithm-validation.patch
+Patch125:       thunderbird-fix-ml-dsa-certificate-signature-algorithm-validation.patch
+
+# PQC support in OpenPGP
+# https://github.com/rnpgp/rnp/pull/2355
+Patch130:       rnp-update-pqc-draft-to-version-12.patch
+# https://github.com/rnpgp/rnp/pull/2392
+Patch131:       rnp-add-openssl-pqc-backend.patch
+# https://github.com/rnpgp/rnp/pull/2482
+Patch132:       rnp-export-both-tradional-and-pqc-subkeys.patch
+# FIXME: Downstream only (at least for now)
+# rnp changes to OpenSSL adding PQC are not part of any release yet
+# so we cannot depend on these changes. Also since this is OpenSSL
+# specific, we would need most likely to implement and test Botan
+Patch133:       thunderbird-build-rnp-with-pqc-backend.patch
+Patch134:       thunderbird-add-pqc-support-to-openpgp.patch
+
 
 # ---- Fedora specific patches ----
 Patch151:       firefox-enable-addons.patch
 Patch152:       rhbz-1173156.patch
-Patch154:       firefox-nss-addon-hack.patch
+Patch153:       firefox-nss-addon-hack.patch
+
 # ARM run-time patch
-Patch155:       rhbz-1354671.patch
+Patch154:       rhbz-1354671.patch
 
 # ---- Security patches ----
 
@@ -281,7 +273,9 @@ BuildRequires:  libvpx-devel >= 1.8.2
 BuildRequires:  bzip2-devel
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
+%if %{?system_libjpeg}
 BuildRequires:  libjpeg-devel
+%endif
 BuildRequires:  libstdc++-devel
 BuildRequires:  libstdc++-static
 BuildRequires:  m4
@@ -368,9 +362,7 @@ BuildRequires: gcc-toolset-%{gts_version}-runtime
 BuildRequires: gcc-toolset-%{gts_version}-binutils
 BuildRequires: gcc-toolset-%{gts_version}-gcc
 BuildRequires: gcc-toolset-%{gts_version}-gcc-plugin-annobin
-# Do not explicitly require gcc-toolset-%%{gts_version}-gcc-c++ instead fail
-# when clang is upgraded to depend on a later toolset and adjust version.
-# ERROR: The target C compiler is version 13.3.1, while the target C++ compiler is version 8.5.0. Need to use the same compiler version.
+BuildRequires: gcc-toolset-%{gts_version}-gcc-c++
 %endif
 
 %if %{?use_openssl_for_librnp}
@@ -389,116 +381,152 @@ Obsoletes:      mozilla <= 37:1.7.13
 Provides:       webclient
 
 # Bundled libraries
-#Provides: bundled(libjxl) it's used only on nightly builds
-# list obtained by: find .|grep moz.yaml|rev|cut -d '/' -f2|rev|sort|sed -e 's/^/Provides: bundled(/' -e 's/$/)/'
+# gfx/angle (git:ceec659ac60b0c8ee9d9c602ca1a878ec1d3a88f)
 Provides: bundled(angle)
+# third_party/aom (3.14.0)
 Provides: bundled(aom)
+# comm/third_party/asn1js (v3.0.5)
 Provides: bundled(asn1js)
+# toolkit/components/translations/bergamot-translator (git:eea6e5a80aa4ddd86d9cc35ce9a65b79aa3ab96d)
 Provides: bundled(bergamot-translator)
+# modules/brotli (git:4792c8e4c4235f6b501f13dbd07a8b4b253eee21)
 Provides: bundled(brotli)
-Provides: bundled(bspatch)
+# gfx/cairo (1.18.4)
+Provides: bundled(cairo)
+# third_party/js/cfworker (v1.10.1)
 Provides: bundled(cfworker)
+# toolkit/components/translations/cld2 (git:cffbd73e131353ca23de449b3b1a5182028a85a1)
 Provides: bundled(cld2)
-Provides: bundled(content)
+# third_party/content_analysis_sdk (git:3d82f7523b557d0d5c75e1acf28c3deb8081ead1)
 Provides: bundled(content_analysis_sdk)
-Provides: bundled(cts)
+# third_party/js/d3 (3.4.2)
 Provides: bundled(d3)
+# mfbt/double-conversion (git:4f7a25d8ced8c7cf6eee6fd09d6788eaa23c9afe)
 Provides: bundled(double-conversion)
-Provides: bundled(drm)
+# parser/expat (R_2_8_1)
 Provides: bundled(expat)
+# toolkit/modules/third_party/fathom (3.7.3)
 Provides: bundled(fathom)
+# modules/fdlibm (git:bd5e624a861433dee76fe00a8acedc9564425332)
 Provides: bundled(fdlibm)
+# comm/third_party/python/fluent.migratetb (v0.13.1.2)
 Provides: bundled(fluent.migratetb)
+# third_party/fmt (git:6bdc12a19946794a3c653854def5cf0fc09b49b1)
 Provides: bundled(fmt)
+# third_party/function2 (git:496c20fede5378190fff471fcd7ee3d8705e5096)
 Provides: bundled(function2)
-Provides: bundled(gbm)
-Provides: bundled(gemmology)
-Provides: bundled(glibc_hack)
-Provides: bundled(googletest)
+# gfx/graphite2 (1.3.15)
 Provides: bundled(graphite2)
+# gfx/harfbuzz (14.2.0)
 Provides: bundled(harfbuzz)
-Provides: bundled(highway)
+# extensions/spellcheck/hunspell (git:c5f98152a274e25b5107101104bef632b83a0cc9)
 Provides: bundled(hunspell)
+# comm/third_party/icaljs (git:926193a28ed90deeabe34d6be178d7d2a53ae6e3)
 Provides: bundled(icaljs)
+# js/src/irregexp (git:199031eb59cdee6a25799d4d4ea40092c3522a71)
 Provides: bundled(irregexp)
-Provides: bundled(java)
+# comm/third_party/json-c (json-c-0.16-20220414)
 Provides: bundled(json-c)
+# toolkit/components/jsoncpp (1.9.7)
+Provides: bundled(jsoncpp)
+# media/libaom (git:3360063d11607252a5cc72b5cd714ce6460f8863)
 Provides: bundled(libaom)
+# media/libcubeb (git:a37dadd1ed5949ab0accd7087b7c5c57800eab43)
 Provides: bundled(libcubeb)
+# media/libdav1d (git:1718ff9aded99f0a89f5c7940d6afb8948301e33)
 Provides: bundled(libdav1d)
-Provides: bundled(libepoxy)
-Provides: bundled(libfuzzer)
-Provides: bundled(libjxl)
+# media/libmkv (git:c5aaf923d80e9f71e0c93d7d99dc1e2f83d7acbf)
 Provides: bundled(libmkv)
+# media/libnestegg (git:1c9936b171b7e37efce87f7af247c7af0e3ea5b8)
 Provides: bundled(libnestegg)
+# media/libogg (v1.3.6)
 Provides: bundled(libogg)
+# media/libopus (git:f18e26e648e0b7d0ad3db5b98eca461c937ee757)
 Provides: bundled(libopus)
+# media/libpng (v1.6.58)
 Provides: bundled(libpng)
+# media/libsoundtouch (git:d994965fbbcf0f6ceeed0e72516968130c2912f0)
 Provides: bundled(libsoundtouch)
+# media/libspeex_resampler (git:738e17905e1ca2a1fa932ddd9c2a85d089f4e845)
 Provides: bundled(libspeex_resampler)
-Provides: bundled(libsrtp)
+# media/libvorbis (git:c9b52fc1c81d8ced3f2eb880ce68162ff270ec47)
 Provides: bundled(libvorbis)
+# media/libvpx (git:ab83db6108180e4663bd0f2ed3cdc3e525c6b35f)
 Provides: bundled(libvpx)
+# media/libwebp (git:991170bbab3e6afc74666d124f3f1dc7be942cd0)
 Provides: bundled(libwebp)
+# media/libyuv (git:5cfaa44d71e019363a715d55279abeeb14abd8f9)
 Provides: bundled(libyuv)
+# toolkit/content/vendor/lit (lit@2.5.0)
 Provides: bundled(lit)
-Provides: bundled(MotionMark)
+# third_party/msgpack (git:b6803a5fecbe321458faafd6a079dac466614ff9)
 Provides: bundled(msgpack)
-Provides: bundled(nICEr)
-Provides: bundled(opentelemetry-cpp)
+# gfx/vr/service/openvr (v1.11.11)
 Provides: bundled(openvr)
+# gfx/ots (git:57df65763716060895afafb1d8a1905aa84c7133)
 Provides: bundled(ots)
+# toolkit/components/pdfjs (git:e75a7cfd62a9dc14c5bbcd2808894d4761268d14)
 Provides: bundled(pdfjs)
+# third_party/perfetto (v49.0)
 Provides: bundled(perfetto)
+# third_party/picosha2 (git:27fcf6979298949e8a462e16d09a0351c18fcaf2)
 Provides: bundled(picosha2)
+# third_party/js/PKI.js (git:c9fd2bc8f028bc4fa8528dc6cbf48eddbf382d6e)
 Provides: bundled(PKI.js)
-Provides: bundled(puppeteer)
-Provides: bundled(pywebsocket3)
+# comm/third_party/qrcode (git:86770ec12f0f9abee8728fc9018ab7bd0949f4bc)
 Provides: bundled(qrcode)
+# toolkit/components/reader (0.6.0)
 Provides: bundled(reader)
+# third_party/rlbox (git:ba8a24ec9d2d418d400bcf584da5031f20fff453)
 Provides: bundled(rlbox)
-Provides: bundled(rlbox_wasm2c_sandbox)
+# comm/third_party/rnp (v0.18.1)
 Provides: bundled(rnp)
+# comm/third_party/sax-js (v1.2.4)
 Provides: bundled(sax-js)
+# toolkit/components/nimbus/schemas (version 3001.0.0)
 Provides: bundled(schemas)
+# third_party/simde (git:fefc7857ff3e785b988a61a8f5f3c5bd5eb24342)
 Provides: bundled(simde)
+# devtools/client/shared/vendor/source-map (git:13e54a38bfc62af93e80eea0240bb46acd6a330a)
 Provides: bundled(source-map)
-Provides: bundled(Speedometer3)
-Provides: bundled(sqlite3)
+# third_party/sqlite3/ext/sqlite-vec (v0.1.10-alpha.4)
 Provides: bundled(sqlite-vec)
-Provides: bundled(src)
+# third_party/sqlite3 (version-3.53.2)
+Provides: bundled(sqlite3)
+# toolkit/components/ml/vendor/transformers (2.16.1)
 Provides: bundled(transformers)
-Provides: bundled(vendor)
-Provides: bundled(vsdownload)
+# third_party/wasm2c (git:94c25a93c5ee81939bd1acfee06808f6745883ce)
 Provides: bundled(wasm2c_sandbox_compiler)
-Provides: bundled(webaudio)
-Provides: bundled(webgl-conf)
+# gfx/wgpu_bindings (git:385b700740049f2059afda726f1b6afa7a5a48a7)
 Provides: bundled(wgpu_bindings)
+# dom/media/gmp/widevine-adapter (git:8f62f3ba6f06483f3908f9cce4f8d931800c9d7c)
 Provides: bundled(widevine-adapter)
+# toolkit/components/ml/vendor/wllama (2.3.1)
 Provides: bundled(wllama)
+# modules/woff2 (git:4721483ad780ee2b63cb787bfee4aa64b61a0446)
 Provides: bundled(woff2)
+# third_party/xsimd (git:50d205d47b7e37e282a662b30aefdafa71f9cde7)
 Provides: bundled(xsimd)
-Provides: bundled(xz-embedded)
-#Not used when with-system-zlib
-#Provides: bundled(zlib)
+# third_party/zstd (v1.5.7-kernel)
 Provides: bundled(zstd)
-Provides: bundled(Zycore)
-Provides: bundled(Zydis)
-
-# Thunderbird third party libraries
-
-Provides: bundled(asn1js)
-Provides: bundled(fluent.migratetb)
-Provides: bundled(icaljs)
-Provides: bundled(json-c)
-Provides: bundled(libgpg-error)
-Provides: bundled(qrcode)
-Provides: bundled(rnp)
-Provides: bundled(sax-js)
 #Not used when with-system-zlib
 #Provides: bundled(zlib)
 #Not used when with-system-bz2
 #Provides: bundled(bzip2)
+# security/sandbox/chromium (git:80712e7ba7b754fbae287ef97fc530203c707d84)
+Provides: bundled(chromium)
+# third_party/gemmology (git:38ec34f1d38e877184b5b3ce0153adeec85bf35f)
+Provides: bundled(gemmology)
+# security/sandbox/linux/launch/glibc_hack (git:a07ca9487c0ec9515f88a780f1073873fb191212)
+Provides: bundled(glibc_hack)
+# third_party/libepoxy (git:2df68f811fc1a5f0a6d372ecdb887333ad3f540f)
+Provides: bundled(libepoxy)
+# third_party/libsrtp (v2.8.0)
+Provides: bundled(libsrtp)
+# dom/media/webrtc/transport/third_party/nICEr (git:b14598f34d12373069693a1f0535fe354a3f1fd5)
+Provides: bundled(nICEr)
+# netwerk/sctp/src (git:1330843b6ffd0c5c2d7483b07050049eedda8077)
+Provides: bundled(src)
 
 %if 0%{?bundle_nss}
 Provides: bundled(nss) = %{nss_version}
@@ -507,575 +535,464 @@ Provides: bundled(nspr) = %{nspr_version}
 
 # Rust third parties:
 # List obtained by `get_rust_bundled_provides.sh build.log` script::
+
 Provides: bundled(crate(aa-stroke)) = 0.1.0
-Provides: bundled(crate(adler)) = 1.0.2
+Provides: bundled(crate(adblock)) = 0.12.1
+Provides: bundled(crate(adler2)) = 2.0.1
 Provides: bundled(crate(aho-corasick)) = 1.1.0
-Provides: bundled(crate(allocator-api2)) = 0.2.999
+Provides: bundled(crate(allocator-api2)) = 0.2.21
+Provides: bundled(crate(alsa)) = 0.9.1
 Provides: bundled(crate(alsa-sys)) = 0.3.1
-Provides: bundled(crate(alsa)) = 0.8.1
 Provides: bundled(crate(ansi_term)) = 0.12.1
-Provides: bundled(crate(anyhow)) = 1.0.69
-Provides: bundled(crate(app_services_logger)) = 0.1.0
+Provides: bundled(crate(anyhow)) = 1.0.103
 Provides: bundled(crate(app_units)) = 0.7.8
+Provides: bundled(crate(array-init)) = 2.1.0
 Provides: bundled(crate(arrayref)) = 0.3.6
 Provides: bundled(crate(arraystring)) = 0.3.0
 Provides: bundled(crate(arrayvec)) = 0.7.6
 Provides: bundled(crate(ash)) = 0.38.0+1.3.281
-Provides: bundled(crate(askama_derive)) = 0.13.1
-Provides: bundled(crate(askama_parser)) = 0.13.0
-Provides: bundled(crate(askama)) = 0.13.1
+Provides: bundled(crate(askama)) = 0.14.0
+Provides: bundled(crate(askama_derive)) = 0.14.0
+Provides: bundled(crate(askama_parser)) = 0.14.0
+Provides: bundled(crate(async-channel)) = 2.5.0
+Provides: bundled(crate(async-lock)) = 3.4.2
 Provides: bundled(crate(async-task)) = 4.3.0
-Provides: bundled(crate(async-trait)) = 0.1.68
+Provides: bundled(crate(async-trait)) = 0.1.89
 Provides: bundled(crate(atomic_refcell)) = 0.1.9
 Provides: bundled(crate(atty)) = 0.2.14
-Provides: bundled(crate(audioipc2-client)) = 0.6.0
-Provides: bundled(crate(audioipc2-server)) = 0.6.0
-Provides: bundled(crate(audioipc2)) = 0.6.0
-Provides: bundled(crate(audio_thread_priority)) = 0.32.0
-Provides: bundled(crate(authenticator)) = 0.4.1
-Provides: bundled(crate(authrs_bridge)) = 0.1.0
+Provides: bundled(crate(audio_thread_priority)) = 0.35.1
 Provides: bundled(crate(autocfg)) = 1.1.0
-Provides: bundled(crate(base64)) = 0.21.999
 Provides: bundled(crate(base64)) = 0.22.1
 Provides: bundled(crate(basic-toml)) = 0.1.2
-Provides: bundled(crate(bhttp)) = 0.3.1
-Provides: bundled(crate(binary_http)) = 0.1.0
+Provides: bundled(crate(bhttp)) = 0.7.2
 Provides: bundled(crate(bincode)) = 1.3.3
-Provides: bundled(crate(bindgen)) = 0.64.999
-Provides: bundled(crate(bindgen)) = 0.69.4
-Provides: bundled(crate(bitflags)) = 1.999.999
-Provides: bundled(crate(bitflags)) = 2.9.0
+Provides: bundled(crate(bindgen)) = 0.72.0
+Provides: bundled(crate(bitflags)) = 2.10.0
 Provides: bundled(crate(bitreader)) = 0.3.6
-Provides: bundled(crate(bit-set)) = 0.8.0
-Provides: bundled(crate(bit-vec)) = 0.8.0
+Provides: bundled(crate(bit-set)) = 0.10.0
+Provides: bundled(crate(bit-vec)) = 0.9.1
 Provides: bundled(crate(block-buffer)) = 0.10.3
-Provides: bundled(crate(bookmark_sync)) = 0.1.0
-Provides: bundled(crate(buildid_reader_ffi)) = 0.1.0
-Provides: bundled(crate(buildid_reader)) = 0.1.0
 Provides: bundled(crate(build-parallel)) = 0.1.2
 Provides: bundled(crate(bumpalo)) = 3.15.4
-Provides: bundled(crate(bytemuck_derive)) = 1.9.3
 Provides: bundled(crate(bytemuck)) = 1.22.0
+Provides: bundled(crate(bytemuck_derive)) = 1.9.3
 Provides: bundled(crate(byteorder)) = 1.5.0
-Provides: bundled(crate(bytes)) = 1.4.0
+Provides: bundled(crate(bytes)) = 1.11.1
 Provides: bundled(crate(cache-padded)) = 1.2.0
-Provides: bundled(crate(calendrical_calculations)) = 0.1.1
+Provides: bundled(crate(calendrical_calculations)) = 0.2.3
 Provides: bundled(crate(camino)) = 1.1.2
 Provides: bundled(crate(cargo_metadata)) = 0.19.2
 Provides: bundled(crate(cargo-platform)) = 0.1.2
-Provides: bundled(crate(cascade_bloom_filter)) = 0.1.0
-Provides: bundled(crate(cc)) = 1.2.12
-Provides: bundled(crate(cert_storage)) = 0.0.1
+Provides: bundled(crate(cc)) = 1.2.30
 Provides: bundled(crate(cexpr)) = 0.6.0
 Provides: bundled(crate(cfg_aliases)) = 0.2.1
 Provides: bundled(crate(cfg-if)) = 1.0.0
-Provides: bundled(crate(chardetng_c)) = 0.1.2
-Provides: bundled(crate(chardetng)) = 0.1.9
-Provides: bundled(crate(chrono)) = 0.4.40
+Provides: bundled(crate(chardetng)) = 1.0.0
+Provides: bundled(crate(chardetng_c)) = 1.0.0
+Provides: bundled(crate(chrono)) = 0.4.42
 Provides: bundled(crate(chunky-vec)) = 0.1.0
 Provides: bundled(crate(clang-sys)) = 1.7.0
 Provides: bundled(crate(clap)) = 2.34.0
-Provides: bundled(crate(clubcard-crlite)) = 0.3.0
-Provides: bundled(crate(clubcard)) = 0.3.2
-Provides: bundled(crate(cmake)) = 0.1.999
-Provides: bundled(crate(codespan-reporting)) = 0.12.0
-Provides: bundled(crate(context_id)) = 0.1.0
+Provides: bundled(crate(clubcard)) = 0.3.3
+Provides: bundled(crate(clubcard-crlite)) = 0.4.0
+Provides: bundled(crate(codespan-reporting)) = 0.13.1
+Provides: bundled(crate(concurrent-queue)) = 2.5.0
 Provides: bundled(crate(core_maths)) = 0.1.0
-Provides: bundled(crate(cose-c)) = 0.1.5
 Provides: bundled(crate(cose)) = 0.1.4
+Provides: bundled(crate(cose-c)) = 0.1.5
 Provides: bundled(crate(cpufeatures)) = 0.2.8
 Provides: bundled(crate(crc32fast)) = 1.4.2
-Provides: bundled(crate(crossbeam-channel)) = 0.5.13
+Provides: bundled(crate(crossbeam-channel)) = 0.5.15
 Provides: bundled(crate(crossbeam-deque)) = 0.8.2
-Provides: bundled(crate(crossbeam-epoch)) = 0.9.14
+Provides: bundled(crate(crossbeam-epoch)) = 0.9.20
 Provides: bundled(crate(crossbeam-queue)) = 0.3.8
-Provides: bundled(crate(crossbeam-utils)) = 0.8.20
+Provides: bundled(crate(crossbeam-utils)) = 0.8.21
 Provides: bundled(crate(crypto-common)) = 0.1.6
-Provides: bundled(crate(crypto_hash)) = 0.1.0
-Provides: bundled(crate(cssparser-macros)) = 0.6.1
-Provides: bundled(crate(cssparser)) = 0.34.1
+Provides: bundled(crate(cssparser)) = 0.37.0
+Provides: bundled(crate(cssparser-macros)) = 0.7.0
 Provides: bundled(crate(cstr)) = 0.2.11
-Provides: bundled(crate(cubeb-backend)) = 0.13.0
-Provides: bundled(crate(cubeb-core)) = 0.13.0
-Provides: bundled(crate(cubeb-pulse)) = 0.5.0
-Provides: bundled(crate(cubeb-sys)) = 0.13.0
-Provides: bundled(crate(cubeb)) = 0.13.0
-Provides: bundled(crate(dap_ffi)) = 0.1.0
+Provides: bundled(crate(cubeb)) = 0.32.0
+Provides: bundled(crate(cubeb-backend)) = 0.32.0
+Provides: bundled(crate(cubeb-core)) = 0.32.0
+Provides: bundled(crate(cubeb-sys)) = 0.32.0
+Provides: bundled(crate(darling)) = 0.20.10
 Provides: bundled(crate(darling_core)) = 0.20.10
 Provides: bundled(crate(darling_macro)) = 0.20.10
-Provides: bundled(crate(darling)) = 0.20.10
-Provides: bundled(crate(data-encoding-ffi)) = 0.1.0
 Provides: bundled(crate(data-encoding)) = 2.3.3
-Provides: bundled(crate(data_storage)) = 0.0.1
-Provides: bundled(crate(dbus-codegen)) = 0.9.1
-Provides: bundled(crate(dbus-tree)) = 0.9.2
 Provides: bundled(crate(dbus)) = 0.6.5
 Provides: bundled(crate(dbus)) = 0.9.6
+Provides: bundled(crate(dbus-codegen)) = 0.9.1
+Provides: bundled(crate(dbus-tree)) = 0.9.2
 Provides: bundled(crate(debug_tree)) = 0.4.0
-Provides: bundled(crate(deranged)) = 0.3.11
-Provides: bundled(crate(derive_more-impl)) = 1.0.0-beta.2
-Provides: bundled(crate(derive_more)) = 0.99.999
-Provides: bundled(crate(derive_more)) = 1.0.0-beta.2
+Provides: bundled(crate(deranged)) = 0.5.8
+Provides: bundled(crate(derive_more)) = 2.0.1
+Provides: bundled(crate(derive_more-impl)) = 2.0.1
 Provides: bundled(crate(digest)) = 0.10.7
-Provides: bundled(crate(diplomat_core)) = 0.8.0
-Provides: bundled(crate(diplomat-runtime)) = 0.8.0
-Provides: bundled(crate(diplomat)) = 0.8.0
-Provides: bundled(crate(dirs-sys)) = 0.3.7
+Provides: bundled(crate(diplomat)) = 0.14.0
+Provides: bundled(crate(diplomat_core)) = 0.14.0
+Provides: bundled(crate(diplomat-runtime)) = 0.14.0
 Provides: bundled(crate(dirs)) = 4.0.0
+Provides: bundled(crate(dirs-sys)) = 0.3.7
 Provides: bundled(crate(displaydoc)) = 0.2.4
 Provides: bundled(crate(dns-parser)) = 0.8.0
 Provides: bundled(crate(document-features)) = 0.2.11
 Provides: bundled(crate(dogear)) = 0.5.0
-Provides: bundled(crate(dom_fragmentdirectives)) = 0.1.0
-Provides: bundled(crate(dom)) = 0.1.0
-Provides: bundled(crate(dtoa-short)) = 0.3.3
 Provides: bundled(crate(dtoa)) = 0.4.8
+Provides: bundled(crate(dtoa-short)) = 0.3.3
 Provides: bundled(crate(either)) = 1.8.1
-Provides: bundled(crate(encoding_c_mem)) = 0.2.6
 Provides: bundled(crate(encoding_c)) = 0.9.8
-Provides: bundled(crate(encoding_glue)) = 0.1.0
+Provides: bundled(crate(encoding_c_mem)) = 0.2.6
 Provides: bundled(crate(encoding_rs)) = 0.8.35
-Provides: bundled(crate(enum-map-derive)) = 0.17.0
 Provides: bundled(crate(enum-map)) = 2.7.3
-Provides: bundled(crate(enumset_derive)) = 0.8.1
+Provides: bundled(crate(enum-map-derive)) = 0.17.0
 Provides: bundled(crate(enumset)) = 1.1.2
+Provides: bundled(crate(enumset_derive)) = 0.8.1
 Provides: bundled(crate(env_logger)) = 0.10.0
 Provides: bundled(crate(equivalent)) = 1.0.1
-Provides: bundled(crate(error-chain)) = 0.12.4
-Provides: bundled(crate(error-support-macros)) = 0.1.0
-Provides: bundled(crate(error-support)) = 0.1.0
+Provides: bundled(crate(errno)) = 0.3.14
 Provides: bundled(crate(etagere)) = 0.2.13
-Provides: bundled(crate(euclid)) = 0.22.10
-Provides: bundled(crate(ews)) = 0.1.0
-Provides: bundled(crate(ews_xpcom)) = 0.1.0
+Provides: bundled(crate(euclid)) = 0.22.13
+Provides: bundled(crate(event-listener)) = 5.4.2
+Provides: bundled(crate(event-listener-strategy)) = 0.5.4
+Provides: bundled(crate(ews)) = 0.1.1
+Provides: bundled(crate(ews_proc_macros)) = 0.1.0
 Provides: bundled(crate(extend)) = 1.2.0
-Provides: bundled(crate(fallible_collections)) = 0.4.9
+Provides: bundled(crate(fallible_collections)) = 0.5.1
 Provides: bundled(crate(fallible-iterator)) = 0.3.0
 Provides: bundled(crate(fallible-streaming-iterator)) = 0.1.9
 Provides: bundled(crate(fastrand)) = 2.1.1
 Provides: bundled(crate(ffi-support)) = 0.4.4
-Provides: bundled(crate(firefox-on-glean)) = 0.1.0
-Provides: bundled(crate(firefox-versioning)) = 0.1.0
-Provides: bundled(crate(flate2)) = 1.0.30
-Provides: bundled(crate(fluent-bundle)) = 0.15.2
-Provides: bundled(crate(fluent-fallback)) = 0.7.0
-Provides: bundled(crate(fluent-ffi)) = 0.1.0
-Provides: bundled(crate(fluent-langneg-ffi)) = 0.1.0
+Provides: bundled(crate(flatbuffers)) = 25.12.19
+Provides: bundled(crate(flate2)) = 1.1.4
+Provides: bundled(crate(fluent)) = 0.16.1
+Provides: bundled(crate(fluent)) = 0.17.0
+Provides: bundled(crate(fluent-bundle)) = 0.15.3
+Provides: bundled(crate(fluent-bundle)) = 0.16.0
+Provides: bundled(crate(fluent-fallback)) = 0.7.2
 Provides: bundled(crate(fluent-langneg)) = 0.13.0
-Provides: bundled(crate(fluent-pseudo)) = 0.3.1
-Provides: bundled(crate(fluent-syntax)) = 0.11.0
-Provides: bundled(crate(fluent)) = 0.16.0
+Provides: bundled(crate(fluent-pseudo)) = 0.3.3
+Provides: bundled(crate(fluent-syntax)) = 0.11.1
+Provides: bundled(crate(fluent-syntax)) = 0.12.0
 Provides: bundled(crate(fnv)) = 1.0.7
-Provides: bundled(crate(fog_control)) = 0.1.0
-Provides: bundled(crate(foldhash)) = 0.1.5
-Provides: bundled(crate(form_urlencoded)) = 1.2.1
+Provides: bundled(crate(foldhash)) = 0.2.0
+Provides: bundled(crate(form_urlencoded)) = 1.2.2
 Provides: bundled(crate(freetype)) = 0.7.0
 Provides: bundled(crate(fs-err)) = 2.9.0
-Provides: bundled(crate(futures-channel)) = 0.3.28
-Provides: bundled(crate(futures-core)) = 0.3.28
-Provides: bundled(crate(futures-executor)) = 0.3.28
-Provides: bundled(crate(futures-io)) = 0.3.28
-Provides: bundled(crate(futures-macro)) = 0.3.28
-Provides: bundled(crate(futures-sink)) = 0.3.28
-Provides: bundled(crate(futures-task)) = 0.3.28
-Provides: bundled(crate(futures-util)) = 0.3.28
 Provides: bundled(crate(futures)) = 0.3.28
+Provides: bundled(crate(futures-channel)) = 0.3.31
+Provides: bundled(crate(futures-core)) = 0.3.31
+Provides: bundled(crate(futures-executor)) = 0.3.28
+Provides: bundled(crate(futures-io)) = 0.3.31
+Provides: bundled(crate(futures-macro)) = 0.3.31
+Provides: bundled(crate(futures-sink)) = 0.3.31
+Provides: bundled(crate(futures-task)) = 0.3.31
+Provides: bundled(crate(futures-util)) = 0.3.31
 Provides: bundled(crate(fxhash)) = 0.2.1
-Provides: bundled(crate(gecko_logger)) = 0.1.0
-Provides: bundled(crate(gecko-profiler)) = 0.1.0
-Provides: bundled(crate(geckoservo)) = 0.0.1
 Provides: bundled(crate(generic-array)) = 0.14.6
-Provides: bundled(crate(getrandom)) = 0.2.999
 Provides: bundled(crate(getrandom)) = 0.3.3
-Provides: bundled(crate(gkrust-shared)) = 0.1.0
-Provides: bundled(crate(gkrust-uniffi-components)) = 0.1.0
-Provides: bundled(crate(gkrust_utils)) = 0.1.0
-Provides: bundled(crate(gkrust)) = 0.1.0
-Provides: bundled(crate(gleam)) = 0.15.0
-Provides: bundled(crate(glean-core)) = 64.3.1
-Provides: bundled(crate(glean)) = 64.3.1
+Provides: bundled(crate(gleam)) = 0.15.1
+Provides: bundled(crate(glean)) = 67.3.2
+Provides: bundled(crate(glean-core)) = 67.3.2
 Provides: bundled(crate(gl_generator)) = 0.14.0
 Provides: bundled(crate(glob)) = 0.3.1
-Provides: bundled(crate(glslopt)) = 0.1.11
-Provides: bundled(crate(glsl-to-cxx)) = 0.1.0
 Provides: bundled(crate(glsl)) = 6.0.2
-Provides: bundled(crate(goblin)) = 0.8.999
+Provides: bundled(crate(glslopt)) = 0.1.14
 Provides: bundled(crate(goblin)) = 0.9.2
-Provides: bundled(crate(golden_gate)) = 0.1.0
-Provides: bundled(crate(gpu-alloc-types)) = 0.3.0
-Provides: bundled(crate(gpu-alloc)) = 0.6.0
-Provides: bundled(crate(gpu-descriptor-types)) = 0.2.0
-Provides: bundled(crate(gpu-descriptor)) = 0.3.0
-Provides: bundled(crate(half)) = 1.999.999
+Provides: bundled(crate(gpu-allocator)) = 0.28.0
 Provides: bundled(crate(half)) = 2.5.0
-Provides: bundled(crate(hashbrown)) = 0.13.999
-Provides: bundled(crate(hashbrown)) = 0.14.999
-Provides: bundled(crate(hashbrown)) = 0.15.2
-Provides: bundled(crate(hashlink)) = 0.10.0
+Provides: bundled(crate(harfbuzz)) = 0.6.0
+Provides: bundled(crate(harfbuzz-sys)) = 0.6.1
+Provides: bundled(crate(harfbuzz-traits)) = 0.6.0
+Provides: bundled(crate(hashbrown)) = 0.17.1
+Provides: bundled(crate(hashlink)) = 0.11.0
 Provides: bundled(crate(heck)) = 0.5.0
-Provides: bundled(crate(hexf-parse)) = 0.2.1
 Provides: bundled(crate(hex)) = 0.4.3
-Provides: bundled(crate(http_sfv)) = 0.1.0
-Provides: bundled(crate(iana-time-zone)) = 0.1.63
-Provides: bundled(crate(icu_calendar_data)) = 1.5.0
-Provides: bundled(crate(icu_calendar)) = 1.5.2
-Provides: bundled(crate(icu_capi)) = 1.5.0
-Provides: bundled(crate(icu_collections)) = 1.5.0
-Provides: bundled(crate(icu_locid_transform_data)) = 1.5.0
-Provides: bundled(crate(icu_locid_transform)) = 1.5.0
-Provides: bundled(crate(icu_locid)) = 1.5.0
-Provides: bundled(crate(icu_normalizer_data)) = 1.5.0
-Provides: bundled(crate(icu_normalizer)) = 1.5.0
-Provides: bundled(crate(icu_properties_data)) = 1.5.0
-Provides: bundled(crate(icu_properties)) = 1.5.0
-Provides: bundled(crate(icu_provider_adapters)) = 1.5.0
-Provides: bundled(crate(icu_provider_macros)) = 1.5.0
-Provides: bundled(crate(icu_provider)) = 1.5.0
-Provides: bundled(crate(icu_segmenter_data)) = 1.5.0
-Provides: bundled(crate(icu_segmenter)) = 1.5.0
+Provides: bundled(crate(http)) = 0.2.12
+Provides: bundled(crate(http)) = 1.4.0
+Provides: bundled(crate(iana-time-zone)) = 0.1.64
+Provides: bundled(crate(icu_calendar)) = 2.1.1
+Provides: bundled(crate(icu_calendar_data)) = 2.1.1
+Provides: bundled(crate(icu_capi)) = 2.1.1
+Provides: bundled(crate(icu_casemap)) = 2.1.1
+Provides: bundled(crate(icu_casemap_data)) = 2.1.1
+Provides: bundled(crate(icu_collator)) = 2.1.1
+Provides: bundled(crate(icu_collator_data)) = 2.1.1
+Provides: bundled(crate(icu_collections)) = 2.1.1
+Provides: bundled(crate(icu_locale)) = 2.1.1
+Provides: bundled(crate(icu_locale_core)) = 2.1.1
+Provides: bundled(crate(icu_locale_data)) = 2.1.1
+Provides: bundled(crate(icu_normalizer)) = 2.1.1
+Provides: bundled(crate(icu_normalizer_data)) = 2.1.1
+Provides: bundled(crate(icu_properties)) = 2.1.2
+Provides: bundled(crate(icu_properties_data)) = 2.1.2
+Provides: bundled(crate(icu_provider)) = 2.1.1
+Provides: bundled(crate(icu_provider_adapters)) = 2.1.1
+Provides: bundled(crate(icu_segmenter)) = 2.1.2
+Provides: bundled(crate(icu_segmenter_data)) = 2.1.1
+Provides: bundled(crate(icu_time)) = 2.1.1
 Provides: bundled(crate(id-arena)) = 2.2.1
 Provides: bundled(crate(ident_case)) = 1.0.1
-Provides: bundled(crate(idna_adapter)) = 1.2.0
-Provides: bundled(crate(idna_glue)) = 0.1.0
-Provides: bundled(crate(idna)) = 1.0.3
-Provides: bundled(crate(indexmap)) = 2.8.0
+Provides: bundled(crate(idna)) = 1.1.0
+Provides: bundled(crate(idna_adapter)) = 1.2.1
+Provides: bundled(crate(indexmap)) = 2.11.4
 Provides: bundled(crate(inherent)) = 1.0.7
-Provides: bundled(crate(interrupt-support)) = 0.1.0
-Provides: bundled(crate(intl-memoizer)) = 0.5.1
+Provides: bundled(crate(intl-memoizer)) = 0.5.3
 Provides: bundled(crate(intl_pluralrules)) = 7.0.2
 Provides: bundled(crate(iovec)) = 0.1.4
-Provides: bundled(crate(ipcclientcerts)) = 0.1.0
-Provides: bundled(crate(ipdl_utils)) = 0.1.0
-Provides: bundled(crate(itertools)) = 0.10.999
 Provides: bundled(crate(itertools)) = 0.14.0
 Provides: bundled(crate(itoa)) = 1.0.15
-Provides: bundled(crate(jexl-eval)) = 0.3.0
-Provides: bundled(crate(jexl-parser)) = 0.3.0
+Provides: bundled(crate(ixdtf)) = 0.6.4
+Provides: bundled(crate(jexl-eval)) = 0.4.0
+Provides: bundled(crate(jexl-parser)) = 0.4.0
 Provides: bundled(crate(jobserver)) = 0.1.33
-Provides: bundled(crate(jog)) = 0.1.0
-Provides: bundled(crate(jsrust_shared)) = 0.1.0
-Provides: bundled(crate(jsrust)) = 0.1.0
-Provides: bundled(crate(keccak)) = 0.1.4
+Provides: bundled(crate(jxl)) = 0.4.3
+Provides: bundled(crate(jxl_macros)) = 0.4.3
+Provides: bundled(crate(jxl_simd)) = 0.4.3
+Provides: bundled(crate(jxl_transforms)) = 0.4.3
+Provides: bundled(crate(keccak)) = 0.1.6
 Provides: bundled(crate(khronos_api)) = 3.1.0
 Provides: bundled(crate(ksni)) = 0.2.2
-Provides: bundled(crate(kvstore)) = 0.1.0
-Provides: bundled(crate(l10nregistry-ffi)) = 0.1.0
-Provides: bundled(crate(l10nregistry)) = 0.3.0
 Provides: bundled(crate(lalrpop-util)) = 0.19.12
-Provides: bundled(crate(lazycell)) = 1.3.0
 Provides: bundled(crate(lazy_static)) = 1.4.0
-Provides: bundled(crate(leb128)) = 0.2.5
-Provides: bundled(crate(libc)) = 0.2.171
+Provides: bundled(crate(leb128fmt)) = 0.1.0
+Provides: bundled(crate(libc)) = 0.2.183
 Provides: bundled(crate(libdbus-sys)) = 0.2.2
 Provides: bundled(crate(libloading)) = 0.8.6
 Provides: bundled(crate(libm)) = 0.2.6
-Provides: bundled(crate(libsqlite3-sys)) = 0.31.0
-Provides: bundled(crate(libudev-sys)) = 0.1.3
+Provides: bundled(crate(libsqlite3-sys)) = 0.35.0
 Provides: bundled(crate(libudev)) = 0.2.0
-Provides: bundled(crate(linux-raw-sys)) = 0.4.14
-Provides: bundled(crate(litemap)) = 0.7.3
+Provides: bundled(crate(linux-raw-sys)) = 0.12.1
+Provides: bundled(crate(litemap)) = 0.8.0
 Provides: bundled(crate(litrs)) = 0.4.1
-Provides: bundled(crate(lmdb-rkv-sys)) = 0.11.2
-Provides: bundled(crate(localization-ffi)) = 0.1.0
 Provides: bundled(crate(lock_api)) = 0.4.9
-Provides: bundled(crate(log)) = 0.4.26
+Provides: bundled(crate(log)) = 0.4.29
+Provides: bundled(crate(macro_rules_attribute)) = 0.2.2
+Provides: bundled(crate(macro_rules_attribute-proc_macro)) = 0.2.2
 Provides: bundled(crate(mail-builder)) = 0.3.2
 Provides: bundled(crate(mail-parser)) = 0.9.4
-Provides: bundled(crate(malloc_size_of_derive)) = 0.1.3
-Provides: bundled(crate(malloc_size_of)) = 0.0.1
 Provides: bundled(crate(mapped_hyph)) = 0.4.3
-Provides: bundled(crate(matches)) = 0.1.10
 Provides: bundled(crate(maybe-async)) = 0.2.10
 Provides: bundled(crate(md-5)) = 0.10.5
-Provides: bundled(crate(mdns_service)) = 0.1.1
-Provides: bundled(crate(memalloc)) = 0.1.0
 Provides: bundled(crate(memchr)) = 2.7.4
-Provides: bundled(crate(memmap2)) = 0.9.3
-Provides: bundled(crate(memoffset)) = 0.8.999
-Provides: bundled(crate(memoffset)) = 0.9.0
-Provides: bundled(crate(midir_impl)) = 0.1.0
-Provides: bundled(crate(midir)) = 0.7.0
-Provides: bundled(crate(mime-guess-ffi)) = 0.1.0
-Provides: bundled(crate(mime_guess)) = 2.0.4
+Provides: bundled(crate(memmap2)) = 0.9.11
 Provides: bundled(crate(mime)) = 0.3.16
+Provides: bundled(crate(mime_guess)) = 2.0.4
 Provides: bundled(crate(minimal-lexical)) = 0.2.1
-Provides: bundled(crate(miniz_oxide)) = 0.7.1
-Provides: bundled(crate(mio)) = 1.0.1
-Provides: bundled(crate(mls_gk)) = 0.1.0
-Provides: bundled(crate(mls-platform-api)) = 0.1.0
+Provides: bundled(crate(miniz_oxide)) = 0.8.9
+Provides: bundled(crate(mio)) = 1.2.0
+Provides: bundled(crate(mls-rs)) = 0.54.0
+Provides: bundled(crate(mls-rs-codec)) = 0.7.0
 Provides: bundled(crate(mls-rs-codec-derive)) = 0.2.0
-Provides: bundled(crate(mls-rs-codec)) = 0.6.0
-Provides: bundled(crate(mls-rs-core)) = 0.21.0
-Provides: bundled(crate(mls-rs-crypto-hpke)) = 0.14.0
-Provides: bundled(crate(mls-rs-crypto-nss)) = 0.1.0
-Provides: bundled(crate(mls-rs-crypto-traits)) = 0.15.0
-Provides: bundled(crate(mls-rs-identity-x509)) = 0.15.0
-Provides: bundled(crate(mls-rs-provider-sqlite)) = 0.15.0
-Provides: bundled(crate(mls-rs)) = 0.45.0
-Provides: bundled(crate(moz_asserts)) = 0.1.0
-Provides: bundled(crate(mozbuild)) = 0.1.0
+Provides: bundled(crate(mls-rs-core)) = 0.26.0
+Provides: bundled(crate(mls-rs-crypto-hpke)) = 0.20.0
+Provides: bundled(crate(mls-rs-crypto-traits)) = 0.21.0
+Provides: bundled(crate(mls-rs-identity-x509)) = 0.20.0
 Provides: bundled(crate(moz_cbor)) = 0.1.2
-Provides: bundled(crate(mozglue-static)) = 0.1.0
-Provides: bundled(crate(moz_http)) = 0.1.0
-Provides: bundled(crate(mozilla-central-workspace-hack)) = 0.1.0
-Provides: bundled(crate(mozilla-central-workspace-hack)) = 0.1.0
-Provides: bundled(crate(moz_task)) = 0.1.0
-Provides: bundled(crate(mozurl)) = 0.0.1
-Provides: bundled(crate(mp4parse_capi)) = 0.17.0
-Provides: bundled(crate(mp4parse)) = 0.17.0
-Provides: bundled(crate(mtu)) = 0.2.6
 Provides: bundled(crate(murmurhash3)) = 0.0.5
-Provides: bundled(crate(naga)) = 25.0.0
-Provides: bundled(crate(neqo-common)) = 0.13.4
-Provides: bundled(crate(neqo-crypto)) = 0.13.4
-Provides: bundled(crate(neqo_glue)) = 0.1.0
-Provides: bundled(crate(neqo-http3)) = 0.13.4
-Provides: bundled(crate(neqo-qpack)) = 0.13.4
-Provides: bundled(crate(neqo-transport)) = 0.13.4
-Provides: bundled(crate(neqo-udp)) = 0.13.4
-Provides: bundled(crate(netwerk_helper)) = 0.0.1
+Provides: bundled(crate(naga)) = 29.0.0
 Provides: bundled(crate(new_debug_unreachable)) = 1.0.4
-Provides: bundled(crate(nix)) = 0.26.99
-Provides: bundled(crate(nix)) = 0.29.0
 Provides: bundled(crate(nom)) = 7.1.3
-Provides: bundled(crate(nserror)) = 0.1.0
-Provides: bundled(crate(nss-gk-api)) = 0.3.0
-Provides: bundled(crate(nsstring)) = 0.1.0
-Provides: bundled(crate(num-conv)) = 0.1.0
+Provides: bundled(crate(num-conv)) = 0.2.0
 Provides: bundled(crate(num_cpus)) = 1.16.0
 Provides: bundled(crate(num-derive)) = 0.4.2
-Provides: bundled(crate(num-integer)) = 0.1.45
+Provides: bundled(crate(num-integer)) = 0.1.46
 Provides: bundled(crate(num-traits)) = 0.2.19
 Provides: bundled(crate(object)) = 0.36.4
-Provides: bundled(crate(oblivious_http)) = 0.1.0
-Provides: bundled(crate(ohttp)) = 0.5.1
+Provides: bundled(crate(ohttp)) = 0.7.2
 Provides: bundled(crate(once_cell)) = 1.21.3
+Provides: bundled(crate(oneshot)) = 0.1.13
+Provides: bundled(crate(operation-queue)) = 1.2.0
 Provides: bundled(crate(ordered-float)) = 3.4.0
-Provides: bundled(crate(origin-trials-ffi)) = 0.1.0
 Provides: bundled(crate(origin-trial-token)) = 0.1.1
-Provides: bundled(crate(oxilangtag-ffi)) = 0.1.0
 Provides: bundled(crate(oxilangtag)) = 0.1.3
-Provides: bundled(crate(parking_lot_core)) = 0.9.10
+Provides: bundled(crate(parking)) = 2.2.1
 Provides: bundled(crate(parking_lot)) = 0.12.3
+Provides: bundled(crate(parking_lot_core)) = 0.9.10
 Provides: bundled(crate(paste)) = 1.0.11
-Provides: bundled(crate(payload-support)) = 0.1.0
-Provides: bundled(crate(peek-poke-derive)) = 0.3.0
-Provides: bundled(crate(peek-poke)) = 0.3.0
-Provides: bundled(crate(percent-encoding)) = 2.3.1
-Provides: bundled(crate(phf_codegen)) = 0.11.2
-Provides: bundled(crate(phf_generator)) = 0.11.2
-Provides: bundled(crate(phf_macros)) = 0.11.2
-Provides: bundled(crate(phf_shared)) = 0.11.2
-Provides: bundled(crate(phf)) = 0.11.2
+Provides: bundled(crate(percent-encoding)) = 2.3.2
+Provides: bundled(crate(phf)) = 0.13.1
+Provides: bundled(crate(phf_codegen)) = 0.13.1
+Provides: bundled(crate(phf_generator)) = 0.13.1
+Provides: bundled(crate(phf_macros)) = 0.13.1
+Provides: bundled(crate(phf_shared)) = 0.13.1
+Provides: bundled(crate(pin-cell)) = 0.2.0
 Provides: bundled(crate(pin-project-lite)) = 0.2.14
 Provides: bundled(crate(pin-utils)) = 0.1.0
-Provides: bundled(crate(pkcs11-bindings)) = 0.1.5
+Provides: bundled(crate(pkcs11-bindings)) = 0.1.7
 Provides: bundled(crate(pkg-config)) = 0.3.26
 Provides: bundled(crate(plain)) = 0.2.3
 Provides: bundled(crate(plane-split)) = 0.18.0
+Provides: bundled(crate(pollster)) = 0.3.0
+Provides: bundled(crate(potential_utf)) = 0.1.4
 Provides: bundled(crate(powerfmt)) = 0.2.0
 Provides: bundled(crate(ppv-lite86)) = 0.2.17
 Provides: bundled(crate(precomputed-hash)) = 0.1.1
-Provides: bundled(crate(prefs_parser)) = 0.0.1
+Provides: bundled(crate(presser)) = 0.3.1
 Provides: bundled(crate(prio)) = 0.16.2
-Provides: bundled(crate(processtools)) = 0.1.0
-Provides: bundled(crate(proc-macro2)) = 1.0.86
-Provides: bundled(crate(profiler_helper)) = 0.1.0
-Provides: bundled(crate(profiler-macros)) = 0.1.0
+Provides: bundled(crate(proc-macro2)) = 1.0.101
+Provides: bundled(crate(proc-macro-error2)) = 2.0.1
+Provides: bundled(crate(proc-macro-error-attr2)) = 2.0.0
 Provides: bundled(crate(profiling)) = 1.0.7
-Provides: bundled(crate(prost-derive)) = 0.12.1
-Provides: bundled(crate(prost)) = 0.12.1
-Provides: bundled(crate(pulse-ffi)) = 0.1.0
-Provides: bundled(crate(pulse)) = 0.3.0
-Provides: bundled(crate(qcms)) = 0.3.0
-Provides: bundled(crate(qlog)) = 0.15.2
+Provides: bundled(crate(prost)) = 0.13.5
+Provides: bundled(crate(prost-derive)) = 0.13.5
+Provides: bundled(crate(qlog)) = 0.16.0
 Provides: bundled(crate(quick-error)) = 1.2.3
 Provides: bundled(crate(quick-xml)) = 0.31.0
-Provides: bundled(crate(quinn-udp)) = 0.5.12
-Provides: bundled(crate(quote)) = 1.0.35
+Provides: bundled(crate(quinn-udp)) = 0.6.0
+Provides: bundled(crate(quote)) = 1.0.40
+Provides: bundled(crate(rand)) = 0.8.6
 Provides: bundled(crate(rand_chacha)) = 0.3.1
 Provides: bundled(crate(rand_core)) = 0.6.4
 Provides: bundled(crate(rand_distr)) = 0.4.3
-Provides: bundled(crate(rand)) = 0.8.5
 Provides: bundled(crate(raw-window-handle)) = 0.6.2
-Provides: bundled(crate(rayon-core)) = 1.12.1
 Provides: bundled(crate(rayon)) = 1.10.0
-Provides: bundled(crate(regex-automata)) = 0.3.7
-Provides: bundled(crate(regex-syntax)) = 0.7.5
-Provides: bundled(crate(regex)) = 1.9.4
-Provides: bundled(crate(relevancy)) = 0.1.0
-Provides: bundled(crate(remote_settings)) = 0.1.0
+Provides: bundled(crate(rayon-core)) = 1.12.1
+Provides: bundled(crate(ref-cast)) = 1.0.24
+Provides: bundled(crate(ref-cast-impl)) = 1.0.24
+Provides: bundled(crate(regex)) = 1.12.3
+Provides: bundled(crate(regex-automata)) = 0.4.14
+Provides: bundled(crate(regex-syntax)) = 0.8.5
 Provides: bundled(crate(remove_dir_all)) = 0.5.3
-Provides: bundled(crate(replace_with)) = 0.1.7
+Provides: bundled(crate(replace_with)) = 0.1.8
 Provides: bundled(crate(ringbuf)) = 0.2.8
-Provides: bundled(crate(rkv)) = 0.19.0
-Provides: bundled(crate(rmp-serde)) = 1.3.0
-Provides: bundled(crate(rmp)) = 0.8.14
-Provides: bundled(crate(ron)) = 0.10.1
-Provides: bundled(crate(rsclientcerts)) = 0.1.0
-Provides: bundled(crate(rsdparsa_capi)) = 0.1.0
+Provides: bundled(crate(rkv)) = 0.20.0
+Provides: bundled(crate(ron)) = 0.12.0
 Provides: bundled(crate(runloop)) = 0.1.0
 Provides: bundled(crate(rure)) = 0.2.2
-Provides: bundled(crate(rusqlite)) = 0.31.999
-Provides: bundled(crate(rusqlite)) = 0.33.0
+Provides: bundled(crate(rusqlite)) = 0.37.0
 Provides: bundled(crate(rust_cascade)) = 1.5.0
 Provides: bundled(crate(rustc-demangle)) = 0.1.21
-Provides: bundled(crate(rustc-hash)) = 1.999.999
 Provides: bundled(crate(rustc-hash)) = 2.1.1
 Provides: bundled(crate(rustc_version)) = 0.4.0
-Provides: bundled(crate(rust_decimal)) = 1.28.1
-Provides: bundled(crate(rustix)) = 0.38.39
+Provides: bundled(crate(rustix)) = 1.1.4
 Provides: bundled(crate(rustversion)) = 1.0.19
-Provides: bundled(crate(ryu)) = 1.0.12
 Provides: bundled(crate(same-file)) = 1.0.6
 Provides: bundled(crate(scopeguard)) = 1.1.0
-Provides: bundled(crate(scroll_derive)) = 0.12.0
 Provides: bundled(crate(scroll)) = 0.12.0
-Provides: bundled(crate(search)) = 0.1.0
-Provides: bundled(crate(selectors)) = 0.26.0
-Provides: bundled(crate(self_cell)) = 0.10.2
+Provides: bundled(crate(scroll_derive)) = 0.12.0
+Provides: bundled(crate(seahash)) = 4.1.0
+Provides: bundled(crate(self_cell)) = 0.10.3
+Provides: bundled(crate(self_cell)) = 1.2.0
 Provides: bundled(crate(semver)) = 1.0.16
+Provides: bundled(crate(serde)) = 1.0.228
 Provides: bundled(crate(serde_bytes)) = 0.11.9
-Provides: bundled(crate(serde_cbor)) = 0.11.2
-Provides: bundled(crate(serde_derive)) = 1.0.219
-Provides: bundled(crate(serde_json)) = 1.0.140
+Provides: bundled(crate(serde_cbor_2)) = 0.13.0
+Provides: bundled(crate(serde_core)) = 1.0.228
+Provides: bundled(crate(serde_derive)) = 1.0.228
+Provides: bundled(crate(serde_json)) = 1.0.149
 Provides: bundled(crate(serde_path_to_error)) = 0.1.11
-Provides: bundled(crate(serde)) = 1.0.219
-Provides: bundled(crate(serde_with_macros)) = 3.12.0
+Provides: bundled(crate(serde_spanned)) = 1.0.3
 Provides: bundled(crate(serde_with)) = 3.12.0
-Provides: bundled(crate(servo_arc)) = 0.4.0
-Provides: bundled(crate(sfv)) = 0.9.4
+Provides: bundled(crate(serde_with_macros)) = 3.12.0
+Provides: bundled(crate(sfv)) = 0.14.0
 Provides: bundled(crate(sha1)) = 0.10.5
 Provides: bundled(crate(sha2)) = 0.10.8
 Provides: bundled(crate(sha3)) = 0.10.8
+Provides: bundled(crate(sharded-slab)) = 0.1.7
 Provides: bundled(crate(shlex)) = 1.3.0
-Provides: bundled(crate(signature_cache)) = 0.1.0
-Provides: bundled(crate(siphasher)) = 0.3.10
+Provides: bundled(crate(simd-adler32)) = 0.3.7
+Provides: bundled(crate(siphasher)) = 1.0.1
 Provides: bundled(crate(slab)) = 0.4.8
 Provides: bundled(crate(smallbitvec)) = 2.5.1
-Provides: bundled(crate(smallvec)) = 1.13.1
+Provides: bundled(crate(smallvec)) = 1.15.2
 Provides: bundled(crate(smawk)) = 0.3.2
-Provides: bundled(crate(socket2)) = 0.4.999
-Provides: bundled(crate(socket2)) = 0.5.7
-Provides: bundled(crate(spirv)) = 0.3.0+sdk-1.3.268.0
-Provides: bundled(crate(sql-support)) = 0.1.0
+Provides: bundled(crate(socket2)) = 0.6.3
+Provides: bundled(crate(spirv)) = 0.4.0+sdk-1.4.341.0
 Provides: bundled(crate(stable_deref_trait)) = 1.2.0
 Provides: bundled(crate(static_assertions)) = 1.1.0
-Provides: bundled(crate(static_prefs)) = 0.1.0
-Provides: bundled(crate(storage)) = 0.1.0
-Provides: bundled(crate(storage_variant)) = 0.1.0
-Provides: bundled(crate(strck_ident)) = 0.1.2
-Provides: bundled(crate(strck)) = 0.1.2
+Provides: bundled(crate(strck)) = 1.0.0
 Provides: bundled(crate(strsim)) = 0.11.1
 Provides: bundled(crate(strsim)) = 0.8.0
-Provides: bundled(crate(strum_macros)) = 0.27.1
 Provides: bundled(crate(strum)) = 0.27.1
-Provides: bundled(crate(style_derive)) = 0.0.1
-Provides: bundled(crate(style_traits)) = 0.0.1
-Provides: bundled(crate(style)) = 0.0.1
-Provides: bundled(crate(subtle)) = 2.5.0
-Provides: bundled(crate(suggest)) = 0.1.0
+Provides: bundled(crate(strum_macros)) = 0.27.1
+Provides: bundled(crate(subtle)) = 2.6.1
 Provides: bundled(crate(svg_fmt)) = 0.4.1
-Provides: bundled(crate(swgl)) = 0.1.0
-Provides: bundled(crate(sync15)) = 0.1.0
-Provides: bundled(crate(sync-guid)) = 0.1.0
+Provides: bundled(crate(syn)) = 2.0.106
 Provides: bundled(crate(synstructure)) = 0.13.1
-Provides: bundled(crate(syn)) = 2.0.87
-Provides: bundled(crate(sys_tray)) = 0.1.0
-Provides: bundled(crate(tabs)) = 0.1.0
-Provides: bundled(crate(tempfile)) = 3.16.0
+Provides: bundled(crate(tempfile)) = 3.27.0
 Provides: bundled(crate(termcolor)) = 1.4.1
 Provides: bundled(crate(textwrap)) = 0.11.0
 Provides: bundled(crate(textwrap)) = 0.16.1
-Provides: bundled(crate(thin-vec)) = 0.2.12
-Provides: bundled(crate(thiserror-impl)) = 2.0.9
-Provides: bundled(crate(thiserror)) = 1.999.999
-Provides: bundled(crate(thiserror)) = 2.0.9
+Provides: bundled(crate(thin-vec)) = 0.2.16
+Provides: bundled(crate(thiserror)) = 2.0.12
+Provides: bundled(crate(thiserror-impl)) = 2.0.12
 Provides: bundled(crate(threadbound)) = 0.1.5
-Provides: bundled(crate(time-core)) = 0.1.2
-Provides: bundled(crate(time)) = 0.1.45
-Provides: bundled(crate(time)) = 0.3.36
-Provides: bundled(crate(tinystr)) = 0.7.6
-Provides: bundled(crate(tinyvec_macros)) = 0.1.1
-Provides: bundled(crate(tinyvec)) = 1.9.0
-Provides: bundled(crate(toml)) = 0.5.11
+Provides: bundled(crate(thread_local)) = 1.1.8
+Provides: bundled(crate(time)) = 0.3.47
+Provides: bundled(crate(time-core)) = 0.1.8
+Provides: bundled(crate(tinystr)) = 0.8.1
+Provides: bundled(crate(toml)) = 0.9.8
+Provides: bundled(crate(toml_datetime)) = 0.7.3
+Provides: bundled(crate(toml_parser)) = 1.0.4
+Provides: bundled(crate(toml_writer)) = 1.0.4
 Provides: bundled(crate(topological-sort)) = 0.1.0
-Provides: bundled(crate(to_shmem_derive)) = 0.1.0
-Provides: bundled(crate(to_shmem)) = 0.1.0
+Provides: bundled(crate(tracing)) = 0.1.41
+Provides: bundled(crate(tracing-attributes)) = 0.1.28
+Provides: bundled(crate(tracing-core)) = 0.1.33
+Provides: bundled(crate(tracing-subscriber)) = 0.3.20
 Provides: bundled(crate(tracy-rs)) = 0.1.2
-Provides: bundled(crate(trust-anchors)) = 0.1.0
 Provides: bundled(crate(typed-arena-nomut)) = 0.1.0
-Provides: bundled(crate(type-map)) = 0.4.0
+Provides: bundled(crate(typeid)) = 1.0.3
+Provides: bundled(crate(type-map)) = 0.5.1
 Provides: bundled(crate(typenum)) = 1.16.0
-Provides: bundled(crate(types)) = 0.1.0
 Provides: bundled(crate(uluru)) = 3.0.0
 Provides: bundled(crate(unicase)) = 2.6.0
-Provides: bundled(crate(unic-langid-ffi)) = 0.1.0
-Provides: bundled(crate(unic-langid-impl)) = 0.9.5
-Provides: bundled(crate(unic-langid)) = 0.9.5
-Provides: bundled(crate(unicode-bidi-ffi)) = 0.1.0
+Provides: bundled(crate(unic-langid)) = 0.9.6
+Provides: bundled(crate(unic-langid-impl)) = 0.9.6
 Provides: bundled(crate(unicode-bidi)) = 0.3.15
 Provides: bundled(crate(unicode-ident)) = 1.0.6
-Provides: bundled(crate(unicode-normalization)) = 0.1.24
-Provides: bundled(crate(unicode-width)) = 0.1.999
+Provides: bundled(crate(unicode-width)) = 0.1.14
 Provides: bundled(crate(unicode-width)) = 0.2.0
-Provides: bundled(crate(uniffi_bindgen)) = 0.29.2
-Provides: bundled(crate(uniffi_build)) = 0.29.2
-Provides: bundled(crate(uniffi_core)) = 0.29.2
-Provides: bundled(crate(uniffi_internal_macros)) = 0.29.2
-Provides: bundled(crate(uniffi_macros)) = 0.29.2
-Provides: bundled(crate(uniffi_meta)) = 0.29.2
-Provides: bundled(crate(uniffi_pipeline)) = 0.29.2
-Provides: bundled(crate(uniffi_udl)) = 0.29.2
-Provides: bundled(crate(uniffi)) = 0.29.2
-Provides: bundled(crate(url)) = 2.5.4
+Provides: bundled(crate(uniffi)) = 0.31.0
+Provides: bundled(crate(uniffi_bindgen)) = 0.31.0
+Provides: bundled(crate(uniffi_build)) = 0.31.0
+Provides: bundled(crate(uniffi_core)) = 0.31.0
+Provides: bundled(crate(uniffi_internal_macros)) = 0.31.0
+Provides: bundled(crate(uniffi_macros)) = 0.31.0
+Provides: bundled(crate(uniffi_meta)) = 0.31.0
+Provides: bundled(crate(uniffi_pipeline)) = 0.31.0
+Provides: bundled(crate(uniffi_udl)) = 0.31.0
+Provides: bundled(crate(uritemplate-next)) = 0.2.0
+Provides: bundled(crate(url)) = 2.5.7
+Provides: bundled(crate(urlpattern)) = 0.6.0
 Provides: bundled(crate(utf16_iter)) = 1.0.5
 Provides: bundled(crate(utf8_iter)) = 1.0.4
 Provides: bundled(crate(uuid)) = 1.3.0
-Provides: bundled(crate(vcpkg)) = 0.2.999
 Provides: bundled(crate(vec_map)) = 0.8.2
 Provides: bundled(crate(version_check)) = 0.9.4
-Provides: bundled(crate(viaduct)) = 0.1.0
 Provides: bundled(crate(void)) = 1.0.2
 Provides: bundled(crate(walkdir)) = 2.3.2
-Provides: bundled(crate(wasm-encoder)) = 0.219.1
-Provides: bundled(crate(wast)) = 219.0.1
-Provides: bundled(crate(webext-storage)) = 0.1.0
-Provides: bundled(crate(webrender_api)) = 0.62.0
-Provides: bundled(crate(webrender_bindings)) = 0.1.0
-Provides: bundled(crate(webrender_build)) = 0.0.2
-Provides: bundled(crate(webrender)) = 0.62.0
+Provides: bundled(crate(wasm-encoder)) = 0.244.0
+Provides: bundled(crate(wast)) = 244.0.0
 Provides: bundled(crate(webrtc-sdp)) = 0.3.13
 Provides: bundled(crate(weedle2)) = 5.0.0
-Provides: bundled(crate(wgpu_bindings)) = 0.1.0
-Provides: bundled(crate(wgpu-core-deps-windows-linux-android)) = 25.0.0
-Provides: bundled(crate(wgpu-core)) = 25.0.0
-Provides: bundled(crate(wgpu-hal)) = 25.0.0
-Provides: bundled(crate(wgpu-types)) = 25.0.0
-Provides: bundled(crate(whatsys)) = 0.3.1
-Provides: bundled(crate(winnow)) = 0.7.9
+Provides: bundled(crate(wgpu-core)) = 29.0.0
+Provides: bundled(crate(wgpu-core-deps-windows-linux-android)) = 29.0.0
+Provides: bundled(crate(wgpu-hal)) = 29.0.0
+Provides: bundled(crate(wgpu-naga-bridge)) = 29.0.0
+Provides: bundled(crate(wgpu-types)) = 29.0.0
+Provides: bundled(crate(whatsys)) = 0.3.2
+Provides: bundled(crate(winnow)) = 0.7.13
 Provides: bundled(crate(wpf-gpu-raster)) = 0.1.0
-Provides: bundled(crate(wr_glyph_rasterizer)) = 0.1.0
 Provides: bundled(crate(write16)) = 1.0.0
-Provides: bundled(crate(writeable)) = 0.5.5
-Provides: bundled(crate(wr_malloc_size_of)) = 0.2.1
+Provides: bundled(crate(writeable)) = 0.6.2
 Provides: bundled(crate(xmldecl)) = 0.2.0
 Provides: bundled(crate(xml-rs)) = 0.8.4
-Provides: bundled(crate(xml_struct_derive)) = 0.1.0
-Provides: bundled(crate(xml_struct)) = 0.1.0
-Provides: bundled(crate(xpcom_async)) = 0.1.0
-Provides: bundled(crate(xpcom_macros)) = 0.1.0
-Provides: bundled(crate(xpcom)) = 0.1.0
-Provides: bundled(crate(yoke-derive)) = 0.7.4
-Provides: bundled(crate(yoke)) = 0.7.4
-Provides: bundled(crate(zeitstempel)) = 0.1.1
-Provides: bundled(crate(zerocopy)) = 0.7.32
-Provides: bundled(crate(zerofrom-derive)) = 0.1.3
+Provides: bundled(crate(xml_struct)) = 1.0.0
+Provides: bundled(crate(xml_struct_derive)) = 1.0.0
+Provides: bundled(crate(yoke)) = 0.8.0
+Provides: bundled(crate(yoke-derive)) = 0.8.0
+Provides: bundled(crate(zeitstempel)) = 0.2.1
+Provides: bundled(crate(zerocopy)) = 0.8.27
 Provides: bundled(crate(zerofrom)) = 0.1.4
-Provides: bundled(crate(zeroize_derive)) = 1.4.2
+Provides: bundled(crate(zerofrom-derive)) = 0.1.3
 Provides: bundled(crate(zeroize)) = 1.8.1
-Provides: bundled(crate(zerovec-derive)) = 0.10.3
-Provides: bundled(crate(zerovec)) = 0.10.4
+Provides: bundled(crate(zeroize_derive)) = 1.4.2
+Provides: bundled(crate(zerotrie)) = 0.2.2
+Provides: bundled(crate(zerovec)) = 0.11.4
+Provides: bundled(crate(zerovec-derive)) = 0.11.1
+Provides: bundled(crate(zlib-rs)) = 0.6.3
+Provides: bundled(crate(zmij)) = 1.0.20
 
 %description
 Mozilla Thunderbird is a standalone mail and newsgroup client.
@@ -1090,6 +1007,7 @@ echo "system_nss          %{?system_nss}"
 echo "use_dts             %{?use_dts}"
 echo "use_nodejs_scl      %{?use_nodejs_scl}"
 echo "use_python3_scl     %{?use_python3_scl}"
+echo "use_gcc_ts          %{?use_gcc_ts}"
 echo "--------------------------------------------"
 #clang -print-search-dirs
 
@@ -1098,94 +1016,63 @@ echo "--------------------------------------------"
 # ---- RHEL specific patches ---
 # -- Downstream only --
 %patch -P1 -p1 -b .disable-elfhack
-%patch -P2 -p1 -b .firefox-gcc-build
 %patch -P3 -p1 -b .build-big-endian-errors
-%if 0%{?rhel} == 7
-%patch -P5 -p1 -b .build-rhel7-lower-node-min-version
-  %ifarch ppc64
-  # abiv2 version not available in RHEL7 ppc
-  # TODO most likely not needed with system nss
-%patch -P6 -p1 -b .ppc64-abiv2
-  %endif
-  %ifarch %{ix86}
-  # -F dwarf not available in RHEL7's nasm
-%patch -P7 -p1 -b .build-rhel7-nasm-dwarf
-  %endif
-%endif
-%if !%{?use_openssl_for_librnp}
-%patch -P9 -p1 -b .disable-openpgp-in-thunderbird
-%endif
-%patch -P11 -p1 -b .rust-file-removal
-%patch -P14 -p1 -b .cargo-lock-version
-
 %if %{?system_nss}
-%if (0%{?rhel} == 10 && %{rhel_minor_version} < 2)
-%patch -P15 -p1 -b .build-system-nss
-%patch -P16 -p1 -b .tb-build-system-nss
+%patch -P14 -p1 -b .nss-version
 %endif
-%if (0%{?rhel} == 9 && %{rhel_minor_version} < 8)
-%patch -P15 -p1 -b .build-system-nss
-%patch -P16 -p1 -b .tb-build-system-nss
-%endif
-%endif
+%patch -P18 -p1 -b .gb18030-detect
 
-%patch -P18 -p1 -b .annobin-fix
-%patch -P19 -p1 -b .min-lexical
-
-%if (0%{?rhel} == 10 && %{rhel_minor_version} > 2)
-%patch -P20 -p1 -b .bindgen-llvm22
+%if !%{?use_openssl_for_librnp}
+%patch -P21 -p1 -b .disable-openpgp-in-thunderbird
 %endif
-%if (0%{?rhel} == 9 && %{rhel_minor_version} > 8)
-%patch -P20 -p1 -b .bindgen-llvm22
-%endif
+%patch -P22 -p1 -b .rust-file-removal
+%patch -P23 -p1 -b .cargo-lock-version
+%patch -P24 -p1 -b .annobin-fix
 
 # -- Upstreamed patches --
 %patch -P51 -p1 -b .mozilla-bmo1170092
-%patch -P52 -p1 -b .exceptionHandled-for-IO-error-processhandler
 
 # -- Submitted upstream, not merged --
-%patch -P102 -p1 -b .mozilla-bmo1670333
+%ifarch s390x ppc64
 %patch -P103 -p1 -b .mozilla-bmo1504834-part1
 %patch -P104 -p1 -b .mozilla-bmo1504834-part3
 %patch -P105 -p1 -b .mozilla-bmo849632
 %patch -P106 -p1 -b .mozilla-bmo998749
 %patch -P107 -p1 -b .mozilla-bmo1716707-swizzle
 %patch -P108 -p1 -b .mozilla-bmo1716707-svg
+%endif
+
 %if 0%{?rhel} == 7 || (0%{?rhel} == 8 && %{rhel_minor_version} < 4)
 %patch -P109 -p1 -b .mozilla-bmo1789216-disable-av1
 %endif
 %patch -P110 -p1 -b .libaom
 %patch -P111 -p1 -b .av1-else-condition-add
 
-%if 0%{?rhel} >= 10
-# ML-DSA support
+%if 0%{?rhel} >= 10 && %{rhel_minor_version} >= 1
+# ML-DSA support in TLS
 %patch -P120 -p1 -b .integrate-ml-dsa-signature-verification-for-pkix-certificate-chain-validation
 %patch -P121 -p1 -b .add-ml-dsa-certificate-support-to-certviewer
 %patch -P122 -p1 -b .enable-ml-dsa-signature-verification-for-certificate-chain-validation
-%if 0%{?rhel_minor_version} < 2
-%patch -P123 -p1 -b .adapt-ml-dsa-support-to-rhel-nss
-%endif
-%patch -P124 -p1 -b .enable-ml-dsa-in-manager-ssl
-
-%if 0%{?rhel_minor_version} < 2
-%patch -P125 -p1 -b .add-mlkem768-secp256r1-support
-%else
-%patch -P126 -p1 -b .add-mlkem768-secp256r1-support-nss-3.124
-%endif
-%patch -P127 -p1 -b .fix-ml-dsa-certificate-signature-algorithm-validation
-
+%patch -P123 -p1 -b .enable-ml-dsa-in-manager-ssl
+%patch -P124 -p1 -b .add-mlkem768-secp256r1-support
+%patch -P125 -p1 -b .fix-ml-dsa-certificate-signature-algorithm-validation
+# PQC support in OpenPGP
+%patch -P130 -p1 -b .rnp-update-pqc-draft-to-version-12.patch
+# https://github.com/rnpgp/rnp/pull/2392
+%patch -P131 -p1 -b .rnp-add-openssl-pqc-backend.patch
+# https://github.com/rnpgp/rnp/pull/2482
+%patch -P132 -p1 -b .rnp-export-both-tradional-and-pqc-subkeys.patch
+%patch -P133 -p1 -b .build-rnp-with-pqc-backend.patch
+%patch -P134 -p1 -b .add-pqc-support-to-openpgp
 %endif
 
 # ---- Fedora specific patches ----
 %patch -P151 -p1 -b .addons
 %patch -P152 -p1 -b .rhbz-1173156
-%patch -P154 -p1 -b .addons-nss-hack
+%patch -P153 -p1 -b .addons-nss-hack
 # ARM run-time patch
 %ifarch aarch64
-%patch -P155 -p1 -b .rhbz-1354671
-%endif
-%ifarch s390x
-%patch -P17 -p1 -b .build-workaround-s390x
+%patch -P154 -p1 -b .rhbz-1354671
 %endif
 
 # ---- Security patches ----
@@ -1207,11 +1094,18 @@ echo "ac_add_options --without-system-nspr" >> .mozconfig
 echo "ac_add_options --without-system-nss" >> .mozconfig
 %endif
 
+%if %{?system_libjpeg}
+echo "ac_add_options --with-system-jpeg" >> .mozconfig
+%else
+echo "ac_add_options --without-system-jpeg" >> .mozconfig
+%endif
+
 %if %{?debug_build}
 echo "ac_add_options --enable-debug" >> .mozconfig
 echo "ac_add_options --disable-optimize" >> .mozconfig
 %else
 %global optimize_flags "none"
+
 %if 0%{?rhel} < 10
   %ifarch s390x
    %global optimize_flags "-g -O1"
@@ -1229,6 +1123,10 @@ echo 'ac_add_options --enable-optimize' >> .mozconfig
 echo "ac_add_options --disable-debug" >> .mozconfig
 %endif
 
+# Second arches fail to start with jemalloc enabled
+%ifnarch %{ix86} x86_64
+echo "ac_add_options --disable-jemalloc" >> .mozconfig
+%endif
 %if %{?system_libvpx}
 echo "ac_add_options --with-system-libvpx" >> .mozconfig
 %else
@@ -1245,11 +1143,9 @@ echo "ac_add_options --with-librnp-backend=openssl" >> .mozconfig
 
 %ifarch ppc64 ppc64le
 echo "ac_add_options --disable-webrtc" >> .mozconfig
-echo "ac_add_options --disable-lto" >> .mozconfig
 %endif
-
 %if 0%{?rhel} < 10
- echo "ac_add_options --disable-lto" >> .mozconfig
+echo "ac_add_options --disable-lto" >> .mozconfig
 %endif
 
 # AV1 requires newer nasm that was rebased in 8.4
@@ -1299,7 +1195,7 @@ function install_rpms_to_current_dir() {
      for package in $(ls $PACKAGE_DIR/$PACKAGE_RPM)
      do
          echo "$package"
-         rpm2cpio "$package" | cpio -idu
+         rpm2cpio "$package" | cpio -ivdu
      done
 }
 
@@ -1387,11 +1283,13 @@ which ld
 which nasm
 which node
 which python3
+which rustc
+which cargo
 # Bundled cbindgen
-mkdir -p my_rust_vendor
+mkdir my_rust_vendor
 cd my_rust_vendor
 %{__tar} xf %{SOURCE2}
-mkdir -p .cargo
+mkdir .cargo
 cat > .cargo/config <<EOL
 [source.crates-io]
 replace-with = "vendored-sources"
@@ -1445,6 +1343,7 @@ MOZ_LINK_FLAGS="-Wl,--no-keep-memory -Wl,--reduce-memory-overheads"
 # __global_ldflags that normally sets this.
 MOZ_LINK_FLAGS="$MOZ_LINK_FLAGS -L%{_libdir}"
 %endif
+
 %ifarch %{ix86} s390x
 export RUSTFLAGS="-Cdebuginfo=0"
 echo 'export RUSTFLAGS="-Cdebuginfo=0"' >> .mozconfig
@@ -1462,6 +1361,13 @@ MOZ_OPT_FLAGS="$MOZ_OPT_FLAGS -DNSS_PKCS11_3_0_STRICT"
 
 echo "export CFLAGS=\"$MOZ_OPT_FLAGS\"" >> .mozconfig
 echo "export CXXFLAGS=\"$MOZ_OPT_FLAGS\"" >> .mozconfig
+%ifarch aarch64
+echo "export ASFLAGS=\"-mbranch-protection=standard\"" >> .mozconfig
+%endif
+%ifarch x86_64
+echo "export ASFLAGS=\"-fcf-protection=full\"" >> .mozconfig
+%endif
+
 echo "export LDFLAGS=\"$MOZ_LINK_FLAGS\"" >> .mozconfig
 echo "export CC=gcc" >> .mozconfig
 echo "export CXX=g++" >> .mozconfig
@@ -1479,14 +1385,12 @@ MOZ_SMP_FLAGS=-j1
 #     RPM_BUILD_NCPUS="`/usr/bin/getconf _NPROCESSORS_ONLN`"
 #[ "$RPM_BUILD_NCPUS" -ge 2 ] && MOZ_SMP_FLAGS=-j2
 #%endif
-#%ifarch x86_64 ppc ppc64 ppc64le
 [ -z "$RPM_BUILD_NCPUS" ] && \
        RPM_BUILD_NCPUS="`/usr/bin/getconf _NPROCESSORS_ONLN`"
 [ "$RPM_BUILD_NCPUS" -ge 2 ] && MOZ_SMP_FLAGS=-j2
 [ "$RPM_BUILD_NCPUS" -ge 4 ] && MOZ_SMP_FLAGS=-j4
 [ "$RPM_BUILD_NCPUS" -ge 8 ] && MOZ_SMP_FLAGS=-j8
-[ "$RPM_BUILD_NCPUS" -ge 16 ] && MOZ_SMP_FLAGS=-j16
-#%endif
+[ "$RPM_BUILD_NCPUS" -ge 16 ] && MOZ_SMP_FLAGS=-j12
 
 echo "mk_add_options MOZ_MAKE_FLAGS=\"$MOZ_SMP_FLAGS\"" >> .mozconfig
 echo "mk_add_options MOZ_SERVICES_SYNC=1" >> .mozconfig
@@ -1505,9 +1409,9 @@ echo "export STRIP=/bin/true" >> .mozconfig
   echo $PKG_CONFIG_PATH
 %endif
 %ifarch s390x
-  setarch s390x -R ./mach build -v 2>&1 || exit 1
+  MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE="none" setarch s390x -R ./mach build -v 2>&1 || exit 1
 %else
-  ./mach build -v 2>&1 || exit 1
+  MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE="system" ./mach build -v 2>&1 || exit 1
 %endif
 
 #---------------------------------------------------------------------
@@ -1529,7 +1433,7 @@ function install_rpms_to_current_dir() {
      for package in $(ls $PACKAGE_DIR/$PACKAGE_RPM)
      do
          echo "$package"
-         rpm2cpio "$package" | cpio -idu
+         rpm2cpio "$package" | cpio -ivdu
      done
 }
 
@@ -1759,18 +1663,10 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Fri Oct  2 2026 Jan Horak <jhorak@redhat.com> - 140.17.0-1
-- Update to 140.17.0 ESR
+* Tue Oct 13 2026 Jan Horak <jhorak@redhat.com> - 153.5.0-1
+- Update to 153.5.0 ESR
 
-* Fri Sep 18 2026 Jan Horak <jhorak@redhat.com> - 140.16.0-1
-- Update to 140.16.0 ESR
-
-* Wed Sep  9 2026 Jan Horak <jhorak@redhat.com> - 140.15.0-1
-- Update to 140.15.0 ESR
-- Fix ML-DSA certificate validation
-  Resolves: RHEL-252227
-
-* Tue Aug 18 2026 Jan Horak <jhorak@redhat.com> - 140.14.0-1
+* Tue Aug 18 2026 Jan Horak <jhorak@redhat.com> - 140.14.0-2
 - Update to 140.14.0 ESR
 
 * Wed Jul 22 2026 Jan Horak <jhorak@redhat.com> - 140.13.0-1
@@ -2184,4 +2080,3 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 * Wed Jul 3 2019 Martin Stransky <stransky@redhat.com> - 60.7.2-3
 - Rebuild to fix rhbz#1725919 - Thunderbird fails to authenticate
   with gmail with ssl/tls and OAuth2.
-
