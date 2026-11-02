@@ -1,0 +1,82 @@
+diff --git a/comm/third_party/rnp/moz.build b/comm/third_party/rnp/moz.build
+index 24b4999adb..beace298d9 100644
+--- a/comm/third_party/rnp/moz.build
++++ b/comm/third_party/rnp/moz.build
+@@ -108,7 +108,11 @@ elif crypto_backend == "openssl":
+         "ENABLE_BRAINPOOL": False,
+     })
+     if CONFIG["MZLA_LIBRNP_OPENSSL_VERSION"][0] == "3":
+-        rnp_defines["CRYPTO_BACKEND_OPENSSL3"] = True
++        rnp_defines.update({
++            "CRYPTO_BACKEND_OPENSSL3": True,
++            "ENABLE_CRYPTO_REFRESH": True,
++            "ENABLE_PQC": True,
++        })
+ 
+ 
+ gen_files_flags = [d for d in get_defines(rnp_defines)]
+@@ -247,6 +251,24 @@ if CONFIG["MZLA_LIBRNP_BACKEND"] == "openssl":
+         "src/lib/crypto/symmetric_common.cpp",
+         "src/lib/crypto/symmetric_ossl.cpp",
+     ]
++    if CONFIG["MZLA_LIBRNP_OPENSSL_VERSION"][0] == "3":
++        SOURCES += [
++            "src/lib/crypto/dilithium_common.cpp",
++            "src/lib/crypto/dilithium_exdsa_composite.cpp",
++            "src/lib/crypto/dilithium_ossl.cpp",
++            "src/lib/crypto/ed25519_ed448_ossl.cpp",
++            "src/lib/crypto/exdsa_ecdhkem_ossl.cpp",
++            "src/lib/crypto/hkdf.cpp",
++            "src/lib/crypto/hkdf_ossl.cpp",
++            "src/lib/crypto/kem_combiner.cpp",
++            "src/lib/crypto/kyber_common.cpp",
++            "src/lib/crypto/kyber_ecdh_composite.cpp",
++            "src/lib/crypto/kyber_ossl.cpp",
++            "src/lib/crypto/secure_bytes.cpp",
++            "src/lib/crypto/sphincsplus_ossl.cpp",
++            "src/lib/crypto/x25519_x448_ossl.cpp",
++            "src/librepgp/v2_seipd.cpp",
++        ]
+ 
+ if CONFIG["MOZ_STDCXX_COMPAT"] and (CONFIG["MOZ_ASAN"] or CONFIG["MOZ_TSAN"]):
+     SOURCES += [
+diff --git a/comm/third_party/rnp/rnp.symbols b/comm/third_party/rnp/rnp.symbols
+index 77d2df30e5..bae8595edb 100644
+--- a/comm/third_party/rnp/rnp.symbols
++++ b/comm/third_party/rnp/rnp.symbols
+@@ -127,7 +127,9 @@ rnp_op_encrypt_add_recipient
+ rnp_op_encrypt_add_signature
+ rnp_op_encrypt_create
+ rnp_op_encrypt_destroy
++rnp_op_encrypt_enable_pkesk_v6
+ rnp_op_encrypt_execute
++rnp_op_encrypt_prefer_pqc_enc_subkey
+ rnp_op_encrypt_set_aead
+ rnp_op_encrypt_set_aead_bits
+ rnp_op_encrypt_set_armor
+@@ -164,6 +166,7 @@ rnp_op_generate_set_protection_mode
+ rnp_op_generate_set_protection_password
+ rnp_op_generate_set_request_password
+ rnp_op_generate_set_userid
++rnp_op_generate_set_v6_key
+ rnp_op_generate_subkey_create
+ rnp_op_sign_add_signature
+ rnp_op_sign_cleartext_create
+diff --git a/comm/third_party/rnpdefs.mozbuild b/comm/third_party/rnpdefs.mozbuild
+index a3fb6c6e84..9686b258a3 100644
+--- a/comm/third_party/rnpdefs.mozbuild
++++ b/comm/third_party/rnpdefs.mozbuild
+@@ -48,6 +48,13 @@ if CONFIG["MOZ_STDCXX_COMPAT"]:
+         ]
+     )
+ 
++if (
++    CONFIG["MZLA_LIBRNP_BACKEND"] == "openssl"
++    and CONFIG["MZLA_LIBRNP_OPENSSL_VERSION"][0] == "3"
++):
++    DEFINES["RNP_EXPERIMENTAL_CRYPTO_REFRESH"] = True
++    DEFINES["RNP_EXPERIMENTAL_PQC"] = True
++
+ 
+ if CONFIG["OS_ARCH"] in ("Linux", "SunOS"):
+     CFLAGS += ["-fPIC"]

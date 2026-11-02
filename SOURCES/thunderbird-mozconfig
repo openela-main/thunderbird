@@ -24,8 +24,6 @@ ac_add_options --with-mozilla-api-keyfile=../mozilla-api-key
 ac_add_options --without-sysroot
 ac_add_options --without-system-icu
 ac_add_options --without-wasm-sandboxed-libraries
-ac_add_options --with-system-jpeg
-ac_add_options --with-system-jpeg
 ac_add_options --with-system-zlib
 ac_add_options --with-system-bz2
 ac_add_options --with-unsigned-addon-scopes=app,system
