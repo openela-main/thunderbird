@@ -135,7 +135,7 @@ end}
 
 Summary: Mozilla Thunderbird mail/newsgroup client
 Name: thunderbird
-Version: 153.5.0
+Version: 153.6.0
 Release: 1%{?dist}
 URL: http://www.mozilla.org/projects/thunderbird/
 License: MPLv1.1 or GPLv2+ or LGPLv2+
@@ -163,7 +163,7 @@ ExcludeArch: %{ix86}
 # Link to original tarball: https://archive.mozilla.org/pub/thunderbird/releases/%%{version}%%{?pre_version}/source/thunderbird-%%{version}%%{?pre_version}.processed-source.tar.xz
 Source0: thunderbird-%{version}%{?pre_version}%{?buildnum}.processed-source.tar.xz
 %if %{with langpacks}
-Source1: thunderbird-langpacks-%{version}%{?pre_version}-20261013.tar.xz
+Source1: thunderbird-langpacks-%{version}%{?pre_version}-20261029.tar.xz
 %endif
 Source2: cbindgen-vendor.tar.xz
 Source3: process-official-tarball
@@ -214,6 +214,8 @@ Patch108: mozilla-bmo1716707-svg.patch
 Patch109: mozilla-bmo1789216-disable-av1.patch
 Patch110: build-libaom.patch
 Patch111: av1-else-condition-add.patch
+Patch112: mozilla-bmo2085342-icu-big-endian.patch
+Patch113: expat-285.patch
 
 # ML-DSA support
 # https://phabricator.services.mozilla.com/D262395
@@ -1047,6 +1049,7 @@ echo "--------------------------------------------"
 %endif
 %patch -P110 -p1 -b .libaom
 %patch -P111 -p1 -b .av1-else-condition-add
+%patch -P112 -p1 -b .bmo2085342-icu-big-endian
 
 %if 0%{?rhel} >= 10 && %{rhel_minor_version} >= 1
 # ML-DSA support in TLS
@@ -1076,6 +1079,7 @@ echo "--------------------------------------------"
 %endif
 
 # ---- Security patches ----
+%patch -P113 -p1 -b .expat-285
 
 %{__rm} -f .mozconfig
 %{__cp} %{SOURCE10} .mozconfig
@@ -1656,8 +1660,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 #===============================================================================
 
 %changelog
-* Mon Nov 02 2026 Release Engineering <releng@openela.org> - 153.5.0
+* Mon Nov 09 2026 Release Engineering <releng@openela.org> - 153.6.0
 - Add OpenELA debranding
+
+* Thu Oct 29 2026 Jan Horak <jhorak@redhat.com> - 153.6.0-1
+- Update to 153.6.0 ESR
 
 * Tue Oct 13 2026 Jan Horak <jhorak@redhat.com> - 153.5.0-1
 - Update to 153.5.0 ESR
