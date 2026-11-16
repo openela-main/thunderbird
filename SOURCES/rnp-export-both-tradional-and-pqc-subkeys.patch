@@ -1,0 +1,288 @@
+diff --git a/comm/third_party/rnp/src/lib/key.cpp b/comm/third_party/rnp/src/lib/key.cpp
+index 69b24342a6..9e4c2d3b79 100644
+--- a/comm/third_party/rnp/src/lib/key.cpp
++++ b/comm/third_party/rnp/src/lib/key.cpp
+@@ -1431,7 +1431,7 @@ Key::write_xfer(pgp_dest_t &dst, const KeyStore *keyring) const
+ }
+ 
+ bool
+-Key::write_autocrypt(pgp_dest_t &dst, Key &sub, uint32_t uid)
++Key::write_autocrypt(pgp_dest_t &dst, Key &sub, uint32_t uid, Key *pqc_sub)
+ {
+     auto cert = latest_uid_selfcert(uid);
+     if (!cert) {
+@@ -1447,6 +1447,20 @@ Key::write_autocrypt(pgp_dest_t &dst, Key &sub, uint32_t uid)
+         RNP_LOG("Public key required");
+         return false;
+     }
++#if defined(ENABLE_PQC)
++    Signature *pqc_binding = nullptr;
++    if (pqc_sub) {
++        if (pqc_sub->is_secret()) {
++            RNP_LOG("Public key required for PQC subkey");
++            return false;
++        }
++        pqc_binding = pqc_sub->latest_binding();
++        if (!pqc_binding) {
++            RNP_LOG("No valid binding for PQC subkey");
++            return false;
++        }
++    }
++#endif
+ 
+     try {
+         /* write all or nothing */
+@@ -1456,6 +1470,12 @@ Key::write_autocrypt(pgp_dest_t &dst, Key &sub, uint32_t uid)
+         cert->sig.write(memdst.dst());
+         sub.pkt().write(memdst.dst());
+         binding->sig.write(memdst.dst());
++#if defined(ENABLE_PQC)
++        if (pqc_sub) {
++            pqc_sub->pkt().write(memdst.dst());
++            pqc_binding->sig.write(memdst.dst());
++        }
++#endif
+         dst_write(&dst, memdst.memory(), memdst.writeb());
+         return !dst.werr;
+     } catch (const std::exception &e) {
+diff --git a/comm/third_party/rnp/src/lib/key.hpp b/comm/third_party/rnp/src/lib/key.hpp
+index 99faa2dee7..8ecceccced 100644
+--- a/comm/third_party/rnp/src/lib/key.hpp
++++ b/comm/third_party/rnp/src/lib/key.hpp
+@@ -258,15 +258,17 @@ class Key {
+      */
+     void write_xfer(pgp_dest_t &dst, const KeyStore *keyring = NULL) const;
+     /**
+-     * @brief Export key with subkey as it is required by Autocrypt (5-packet sequence: key,
+-     * uid, sig, subkey, sig).
++     * @brief Export key with subkey(s) as required by Autocrypt. Produces a 5-packet sequence
++     * (key, uid, sig, subkey, sig) or a 7-packet sequence when pqc_sub is also provided
++     * (key, uid, sig, subkey, sig, pqc_subkey, sig).
+      *
+      * @param dst stream to write packets
+-     * @param sub subkey
++     * @param sub traditional (non-PQC) encryption subkey
+      * @param uid index of uid to export
++     * @param pqc_sub optional PQC encryption subkey (ML-KEM-768+X25519 for v4 keys)
+      * @return true on success or false otherwise
+      */
+-    bool write_autocrypt(pgp_dest_t &dst, Key &sub, uint32_t uid);
++    bool write_autocrypt(pgp_dest_t &dst, Key &sub, uint32_t uid, Key *pqc_sub = nullptr);
+     /**
+      * @brief Write key to vector.
+      */
+diff --git a/comm/third_party/rnp/src/lib/rnp.cpp b/comm/third_party/rnp/src/lib/rnp.cpp
+index 71092a417f..953fe50462 100644
+--- a/comm/third_party/rnp/src/lib/rnp.cpp
++++ b/comm/third_party/rnp/src/lib/rnp.cpp
+@@ -3945,13 +3945,45 @@ try {
+         FFI_LOG(key->ffi, "No valid signing primary key");
+         return RNP_ERROR_BAD_PARAMETERS;
+     }
+-    /* Get encrypting subkey */
+-    auto *sub = subkey ?
+-                  get_key_prefer_public(subkey) :
+-                  find_suitable_key(PGP_OP_ENCRYPT, primary, &key->ffi->key_provider, true);
+-    if (!sub || sub->is_primary() || !sub->usable_for(PGP_OP_ENCRYPT)) {
+-        FFI_LOG(key->ffi, "No encrypting subkey");
+-        return RNP_ERROR_KEY_NOT_FOUND;
++    /* Get encrypting subkey(s) */
++    rnp::Key *sub = nullptr;
++    rnp::Key *pqc_sub = nullptr;
++    if (subkey) {
++        sub = get_key_prefer_public(subkey);
++        if (!sub || sub->is_primary() || !sub->usable_for(PGP_OP_ENCRYPT)) {
++            FFI_LOG(key->ffi, "No encrypting subkey");
++            return RNP_ERROR_KEY_NOT_FOUND;
++        }
++    } else {
++        /* Auto-select: find the best traditional (non-PQC) and PQC encryption subkeys.
++         * For v4 keys, PQC means ML-KEM-768+X25519 (PGP_PKA_KYBER768_X25519). */
++        for (auto &fp : primary->subkey_fps()) {
++            rnp::KeyFingerprintSearch search(fp);
++            rnp::Key *cur = key->ffi->key_provider.request_key(search, PGP_OP_ENCRYPT, false);
++            if (!cur || !cur->usable_for(PGP_OP_ENCRYPT)) {
++                continue;
++            }
++#if defined(ENABLE_PQC)
++            if (cur->is_pqc()) {
++                if (!pqc_sub || cur->creation() > pqc_sub->creation()) {
++                    pqc_sub = cur;
++                }
++                continue;
++            }
++#endif
++            if (!sub || cur->creation() > sub->creation()) {
++                sub = cur;
++            }
++        }
++        if (!sub && !pqc_sub) {
++            FFI_LOG(key->ffi, "No encrypting subkey");
++            return RNP_ERROR_KEY_NOT_FOUND;
++        }
++        /* If only a PQC subkey is available, export it as the sole subkey. */
++        if (!sub) {
++            sub = pqc_sub;
++            pqc_sub = nullptr;
++        }
+     }
+     /* Get userid */
+     size_t uididx = primary->uid_count();
+@@ -3978,9 +4010,9 @@ try {
+     bool res = false;
+     if (base64) {
+         rnp::ArmoredDest armor(output->dst, PGP_ARMORED_BASE64);
+-        res = primary->write_autocrypt(armor.dst(), *sub, uididx);
++        res = primary->write_autocrypt(armor.dst(), *sub, uididx, pqc_sub);
+     } else {
+-        res = primary->write_autocrypt(output->dst, *sub, uididx);
++        res = primary->write_autocrypt(output->dst, *sub, uididx, pqc_sub);
+     }
+     return res ? RNP_SUCCESS : RNP_ERROR_BAD_PARAMETERS;
+ }
+diff --git a/comm/third_party/rnp/src/tests/data/test_key_edge_cases/eddsa-ecdh-mlkem-pub.pgp b/comm/third_party/rnp/src/tests/data/test_key_edge_cases/eddsa-ecdh-mlkem-pub.pgp
+new file mode 100644
+index 0000000000..93d4d36805
+--- /dev/null
++++ b/comm/third_party/rnp/src/tests/data/test_key_edge_cases/eddsa-ecdh-mlkem-pub.pgp
+@@ -0,0 +1,36 @@
++-----BEGIN PGP PUBLIC KEY BLOCK-----
++
++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
++sXY83Sh22jjML5QC
++=hJ9Z
++-----END PGP PUBLIC KEY BLOCK-----
+diff --git a/comm/third_party/rnp/src/tests/ffi-key.cpp b/comm/third_party/rnp/src/tests/ffi-key.cpp
+index cd837365ff..4f5de4234d 100644
+--- a/comm/third_party/rnp/src/tests/ffi-key.cpp
++++ b/comm/third_party/rnp/src/tests/ffi-key.cpp
+@@ -4272,6 +4272,99 @@ TEST_F(rnp_tests, test_ffi_key_export_autocrypt)
+     rnp_ffi_destroy(ffi);
+ }
+ 
++#if defined(ENABLE_PQC)
++static bool
++check_key_autocrypt_pqc(rnp_output_t       memout,
++                        const std::string &keyid,
++                        const std::string &subid,
++                        const std::string &pqcsubid,
++                        const std::string &uid)
++{
++    rnp_ffi_t ffi = NULL;
++    rnp_ffi_create(&ffi, "GPG", "GPG");
++
++    uint8_t *buf = NULL;
++    size_t   len = 0;
++    if (rnp_output_memory_get_buf(memout, &buf, &len, false) || !buf || !len) {
++        return false;
++    }
++    if (!import_all_keys(ffi, buf, len)) {
++        return false;
++    }
++    size_t count = 0;
++    rnp_get_public_key_count(ffi, &count);
++    if (count != 3) {
++        return false;
++    }
++    rnp_get_secret_key_count(ffi, &count);
++    if (count != 0) {
++        return false;
++    }
++    rnp_key_handle_t key = NULL;
++    if (rnp_locate_key(ffi, "keyid", keyid.c_str(), &key) || !key) {
++        return false;
++    }
++    rnp_key_handle_t sub = NULL;
++    if (rnp_locate_key(ffi, "keyid", subid.c_str(), &sub) || !sub) {
++        return false;
++    }
++    rnp_key_handle_t pqcsub = NULL;
++    if (rnp_locate_key(ffi, "keyid", pqcsubid.c_str(), &pqcsub) || !pqcsub) {
++        return false;
++    }
++    if (!key->pub->valid() || !sub->pub->valid() || !pqcsub->pub->valid()) {
++        return false;
++    }
++    if ((key->pub->sig_count() != 1) || (sub->pub->sig_count() != 1) ||
++        (pqcsub->pub->sig_count() != 1)) {
++        return false;
++    }
++    if (!key->pub->can_sign() || !sub->pub->can_encrypt() || !pqcsub->pub->can_encrypt()) {
++        return false;
++    }
++    if ((key->pub->uid_count() != 1) || (key->pub->get_uid(0).str != uid)) {
++        return false;
++    }
++    rnp_key_handle_destroy(key);
++    rnp_key_handle_destroy(sub);
++    rnp_key_handle_destroy(pqcsub);
++    rnp_ffi_destroy(ffi);
++    return true;
++}
++
++TEST_F(rnp_tests, test_ffi_key_export_autocrypt_pqc)
++{
++    rnp_ffi_t ffi = NULL;
++    assert_rnp_success(rnp_ffi_create(&ffi, "GPG", "GPG"));
++
++    /* Load test key: EdDSA primary + ECDH Curve25519 subkey + ML-KEM-768+X25519 subkey */
++    rnp_input_t input = NULL;
++    assert_rnp_success(
++      rnp_input_from_path(&input, "data/test_key_edge_cases/eddsa-ecdh-mlkem-pub.pgp"));
++    assert_rnp_success(rnp_import_keys(ffi, input, RNP_LOAD_SAVE_PUBLIC_KEYS, NULL));
++    rnp_input_destroy(input);
++
++    rnp_key_handle_t key = NULL;
++    assert_rnp_success(rnp_locate_key(ffi, "keyid", "49521d629c00700d", &key));
++    assert_non_null(key);
++
++    /* Export with NULL subkey: should auto-select both traditional and PQC subkeys */
++    rnp_output_t output = NULL;
++    assert_rnp_success(rnp_output_to_memory(&output, 0));
++    assert_rnp_success(rnp_key_export_autocrypt(
++      key, NULL, "Test Autocrypt PQC <autocrypt-pqc@rnp.test>", output, 0));
++    assert_true(check_key_autocrypt_pqc(output,
++                                        "49521d629c00700d",
++                                        "602a701453cf85ef",
++                                        "295165dd86e098aa",
++                                        "Test Autocrypt PQC <autocrypt-pqc@rnp.test>"));
++    rnp_output_destroy(output);
++
++    rnp_key_handle_destroy(key);
++    rnp_ffi_destroy(ffi);
++}
++#endif /* ENABLE_PQC */
++
+ TEST_F(rnp_tests, test_ffi_keys_import_autocrypt)
+ {
+     rnp_ffi_t ffi = NULL;

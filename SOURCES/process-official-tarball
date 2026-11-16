@@ -1,5 +1,25 @@
 #!/bin/sh
 
+function fix-cargo-checksum() {
+ARG=$1
+FILE=$1
+#set -x
+
+#cp $FILE $ARG.backup
+for i in $(cat .cargo-checksum.json|jq -r '.files| keys[]'); do
+if [ ! -f $i ]; then
+  #echo $i non exist
+  sed -ie "s|\"$i\":\"[^\"]*\",||" $FILE
+else
+  SHA=`sha256sum $i | cut -d " " -f1`
+  sed -ie "s|\"$i\":\"[^\"]*\"|\"$i\":\"$SHA\"|" $FILE
+fi
+
+#echo $i
+done
+}
+
+
 rm -rf ./process-tarball-dir
 mkdir ./process-tarball-dir
 tar -xJf $1 --directory process-tarball-dir
@@ -12,19 +32,40 @@ rm -vf ./process-tarball-dir/*/testing/web-platform/tests/css/css-ui/support/cur
 rm -vf ./process-tarball-dir/*/testing/web-platform/tests/conformance-checkers/html-rdfa/0230-novalid.html
 rm -vf ./process-tarball-dir/*/testing/web-platform/tests/conformance-checkers/html-rdfa/0231-isvalid.html
 rm -vf ./process-tarball-dir/*/layout/inspector/tests/chrome/test_fontVariationsAPI.css
-rm -vr ./process-tarball-dir/*/third_party/rust/wast/tests/parse-fail/confusing*
 # A forbidden code point was found in:
 rm -vf ./process-tarball-dir/*/mobile/android/android-components/components/browser/errorpages/src/main/res/values-ar/strings.xml
 rm -vf ./process-tarball-dir/*/mobile/android/android-components/components/feature/addons/src/main/res/values-ur/strings.xml
 rm -vf ./process-tarball-dir/*/third_party/webkit/PerformanceTests/Speedometer3/resources/editors/dist/assets/codemirror-521de7ab.js
 rm -vf ./process-tarball-dir/*/third_party/python/pip/pip-24.0.dist-info/AUTHORS.txt
 rm -vf ./process-tarball-dir/*/dom/locks/test/crashtests/1908240.js
-rm -vf ./process-tarball-dir/*/comm/third_party/rust/idna/tests/IdnaTestV2.txt
-rm -vr ./process-tarball-dir/*/comm/third_party/rust/wast/tests/parse-fail/confusing*
-rm -vr ./process-tarball-dir/*/comm/third_party/libotr*
-rm -vr ./process-tarball-dir/*/comm/third_party/libgcrypt*
-rm -vr ./process-tarball-dir/*/third_party/rust/wast/tests/parse-fail/confusing*
-rm -vr ./process-tarball-dir/*/layout/base/crashtests/496011-1.xhtm
+
+pushd ./process-tarball-dir/*/third_party/rust/wast/
+rm -vf 	tests/parse-fail/confusing-block-comment0.wat \
+	tests/parse-fail/confusing-string5.wat \
+	tests/parse-fail/confusing-line-comment1.wat \
+	tests/parse-fail/confusing-line-comment4.wat \
+	tests/parse-fail/confusing-string1.wat \
+	tests/parse-fail/confusing-line-comment5.wat \
+	tests/parse-fail/confusing-line-comment3.wat \
+	tests/parse-fail/confusing-block-comment1.wat \
+	tests/parse-fail/confusing-string0.wat \
+	tests/parse-fail/confusing-line-comment0.wat \
+	tests/parse-fail/confusing-block-comment4.wat \
+	tests/parse-fail/confusing-block-comment6.wat \
+	tests/parse-fail/confusing-block-comment8.wat \
+	tests/parse-fail/confusing-string6.wat \
+	tests/parse-fail/confusing-string2.wat \
+	tests/parse-fail/confusing-block-comment3.wat \
+	tests/parse-fail/confusing-line-comment8.wat \
+	tests/parse-fail/confusing-block-comment5.wat \
+	tests/parse-fail/confusing-line-comment6.wat \
+	tests/parse-fail/confusing-string4.wat \
+	tests/parse-fail/confusing-string3.wat \
+	tests/parse-fail/confusing-block-comment2.wat \
+	tests/parse-fail/confusing-line-comment2.wat \
+	tests/parse-fail/confusing-string8.wat
+fix-cargo-checksum .cargo-checksum.json
+popd
 
 # We uses system freetype2
 rm -vrf ./process-tarball-dir/*/modules/freetype2

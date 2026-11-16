@@ -1,0 +1,1027 @@
+diff --git a/comm/mail/extensions/am-e2e/prefs/e2e-prefs.js b/comm/mail/extensions/am-e2e/prefs/e2e-prefs.js
+index 150efbcf5a..30e0d30e4b 100644
+--- a/comm/mail/extensions/am-e2e/prefs/e2e-prefs.js
++++ b/comm/mail/extensions/am-e2e/prefs/e2e-prefs.js
+@@ -110,6 +110,7 @@ pref("mail.smime.accept_insecure_sha1_message_signatures", false);
+ 
+ // When sending, encrypt to this additional key. Not available in release channel builds.
+ pref("mail.openpgp.debug.extra_encryption_key", "");
++pref("mail.openpgp.pqc", false);
+ 
+ // Hide prefs and menu entries from non-advanced users
+ pref("temp.openpgp.advancedUser", false);
+@@ -277,4 +278,3 @@ pref("mail.identity.default.e2etechpref", 0);
+ 
+ // disable flowed text by default
+ // TODO: pref("mailnews.send_plaintext_flowed", false);
+-
+diff --git a/comm/mail/extensions/openpgp/content/modules/CollectedKeysDB.sys.mjs b/comm/mail/extensions/openpgp/content/modules/CollectedKeysDB.sys.mjs
+index a960d7af47..357238813b 100644
+--- a/comm/mail/extensions/openpgp/content/modules/CollectedKeysDB.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/CollectedKeysDB.sys.mjs
+@@ -95,7 +95,7 @@ export class CollectedKeysDB {
+    * @param {CollectedKey} key - the key to store.
+    */
+   async storeKey(key) {
+-    if (key.fingerprint?.length != 40) {
++    if (key.fingerprint?.length != 40 && key.fingerprint?.length != 64) {
+       throw new Error(`Invalid fingerprint: ${key.fingerprint}`);
+     }
+     return new Promise((resolve, reject) => {
+@@ -125,7 +125,7 @@ export class CollectedKeysDB {
+    * @returns {CollectedKey} the key found, or null.
+    */
+   async findKeyForFingerprint(fingerprint) {
+-    if (fingerprint?.length != 40) {
++    if (fingerprint?.length != 40 && fingerprint?.length != 64) {
+       throw new Error(`Invalid fingerprint: ${fingerprint}`);
+     }
+     return new Promise((resolve, reject) => {
+@@ -288,7 +288,7 @@ export class CollectedKeysDB {
+    * @param {string} fingerprint - fingerprint of key to delete.
+    */
+   async deleteKey(fingerprint) {
+-    if (fingerprint.length != 40) {
++    if (fingerprint.length != 40 && fingerprint.length != 64) {
+       throw new Error(`Invalid fingerprint: ${fingerprint}`);
+     }
+     return new Promise((resolve, reject) => {
+diff --git a/comm/mail/extensions/openpgp/content/modules/RNP.sys.mjs b/comm/mail/extensions/openpgp/content/modules/RNP.sys.mjs
+index a67463deed..838f7488de 100644
+--- a/comm/mail/extensions/openpgp/content/modules/RNP.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/RNP.sys.mjs
+@@ -514,6 +514,8 @@ before importing and publishing this revocation certificate.
+ export class DecryptVerifyResult {
+   /** @type {string} */
+   decryptedData = "";
++  /** @type {string} */
++  protectionMode = "";
+   /** @type {integer} */
+   exitCode = -1;
+   /** @type {integer} */
+@@ -636,6 +638,7 @@ export var RNP = {
+   addKeyAttributes(handle, meta, keyObj, is_subkey, forListing) {
+     const algo = new lazy.ctypes.char.ptr();
+     const bits = new lazy.ctypes.uint32_t();
++    const version = new lazy.ctypes.uint32_t();
+     const key_expiration = new lazy.ctypes.uint32_t();
+     const allowed = new lazy.ctypes.bool();
+ 
+@@ -660,6 +663,11 @@ export var RNP = {
+ 
+     keyObj.fpr = this.getFingerprintFromHandle(handle);
+ 
++    if (RNPLib.rnp_key_get_version(handle, version.address())) {
++      throw new Error("rnp_key_get_version failed");
++    }
++    keyObj.version = version.value;
++
+     if (RNPLib.rnp_key_get_alg(handle, algo.address())) {
+       throw new Error("rnp_key_get_alg failed");
+     }
+@@ -781,6 +789,8 @@ export var RNP = {
+    * @param {boolean} withPubKey - If true, an additional attribute
+    *   "pubKey" will be added to each returned KeyObj, which will
+    *   contain an ascii armor copy of the public key.
++   * @param {boolean} includeBadKeys - If true, include keys that fail
++   *   the validity check.
+    * @returns {KeyObj[]} an array of KeyObj objects that describe the
+    *   available keys.
+    */
+@@ -789,7 +799,8 @@ export var RNP = {
+     forListing,
+     onlyKeys = null,
+     onlySecret = false,
+-    withPubKey = false
++    withPubKey = false,
++    includeBadKeys = false
+   ) {
+     if (!!onlyKeys && onlySecret) {
+       throw new Error(
+@@ -863,7 +874,7 @@ export var RNP = {
+ 
+         const keyObj = {};
+         try {
+-          if (RNP.isBadKey(handle, null, ffi)) {
++          if (!includeBadKeys && RNP.isBadKey(handle, null, ffi)) {
+             continue;
+           }
+ 
+@@ -2155,6 +2166,9 @@ export var RNP = {
+       const mode = prot_mode_str.readString();
+       const cipher = prot_cipher_str.readString();
+       const validIntegrityProtection = prot_is_valid.value;
++      result.protectionMode = mode;
++      RNPLib.rnp_buffer_destroy(prot_mode_str);
++      RNPLib.rnp_buffer_destroy(prot_cipher_str);
+ 
+       lazy.log.debug(`Decryption mode=${mode}, cipher=${cipher}`);
+       if (mode != "none") {
+@@ -2694,6 +2708,12 @@ export var RNP = {
+       primaryKeyType = "eddsa";
+       subKeyType = "ecdh";
+       subKeyCurve = "Curve25519";
++    } else if (
++      keyType == "PQC" &&
++      Services.prefs.getBoolPref("mail.openpgp.pqc", false)
++    ) {
++      primaryKeyType = "ML-DSA-65+ED25519";
++      subKeyType = "ML-KEM-768+X25519";
+     } else {
+       return null;
+     }
+@@ -2708,6 +2728,9 @@ export var RNP = {
+     ) {
+       throw new Error("rnp_op_generate_create primary failed");
+     }
++    if (keyType == "PQC" && RNPLib.rnp_op_generate_set_v6_key(genOp)) {
++      throw new Error("rnp_op_generate_set_v6_key primary failed");
++    }
+ 
+     if (RNPLib.rnp_op_generate_set_userid(genOp, userId)) {
+       throw new Error("rnp_op_generate_set_userid failed");
+@@ -2759,6 +2782,9 @@ export var RNP = {
+     ) {
+       throw new Error("rnp_op_generate_subkey_create primary failed");
+     }
++    if (keyType == "PQC" && RNPLib.rnp_op_generate_set_v6_key(genOp)) {
++      throw new Error("rnp_op_generate_set_v6_key sub failed");
++    }
+ 
+     if (passphrase != null && passphrase.length != 0) {
+       if (RNPLib.rnp_op_generate_set_protection_password(genOp, passphrase)) {
+@@ -2813,7 +2839,7 @@ export var RNP = {
+     Services.obs.notifyObservers(null, "openpgp-key-change");
+   },
+ 
+-  importToFFI(ffi, keyBlockStr, usePublic, useSecret) {
++  importToFFI(ffi = RNPLib.ffi, keyBlockStr, usePublic, useSecret) {
+     if (usePublic && useSecret) {
+       throw new Error("Cannot import public and secret keys at the same time");
+     }
+@@ -3146,19 +3172,31 @@ export var RNP = {
+     }
+ 
+     const keys = await this.getKeysFromFFI(tempFFI, true);
++    const keysForPolicyCheck = await this.getKeysFromFFI(
++      tempFFI,
++      true,
++      null,
++      false,
++      false,
++      true
++    );
+     const pwCache = {
+       passwords: [],
+     };
++    const allowPqc = Services.prefs.getBoolPref(
++      "mail.openpgp.pqc",
++      false
++    );
+ 
+     // Abort if we see keys that we don't support.
+     // TODO: In the future, the decision whether a key is supported
+     // should be based on the result of an API call that queries the
+-    // version of the key. As of today, the newest version we support is
+-    // v4 with a fingerprint length of 40 characters. All newer
+-    // specifications known at the time of writing this code use longer
+-    // fingerprints.
+-    for (const k of keys) {
+-      if (k.fpr.length > 40) {
++    // version of the key. PQC support permits v6 keys.
++    for (const k of keysForPolicyCheck) {
++      if (
++        k.version > 4 &&
++        (!allowPqc || k.version != 6)
++      ) {
+         RNPLib.rnp_ffi_destroy(tempFFI);
+         lazy.log.warn(
+           `Cannot import OpenPGP key with fingerprint ${k.fpr} because it is based on an unsupported specification.`
+@@ -3594,7 +3632,7 @@ export var RNP = {
+     let type = null;
+     if (id.length == 16) {
+       type = "keyid";
+-    } else if (id.length == 40 || id.length == 32) {
++    } else if (id.length == 64 || id.length == 40 || id.length == 32) {
+       type = "fingerprint";
+     } else {
+       throw new Error("key/fingerprint identifier of unexpected length: " + id);
+@@ -3752,18 +3790,53 @@ export var RNP = {
+     // Prefer usable subkeys, because they are always newer
+     // (or same age) as primary key.
+ 
+-    const use_sub = this.getSuitableSubkey(key, str_encrypt);
+-    if (!use_sub && !this.isKeyUsableFor(key, str_encrypt)) {
+-      throw new Error("no suitable subkey found for " + str_encrypt);
+-    }
++    let primaryKey = null;
++    let useSubkey = null;
++    const preferPqc = Services.prefs.getBoolPref(
++      "mail.openpgp.pqc",
++      false
++    );
++    try {
++      if (preferPqc) {
++        primaryKey = this.getPrimaryKeyHandleIfSub(RNPLib.ffi, key);
++        const primary = primaryKey.isNull() ? key : primaryKey;
++        useSubkey = new RNPLib.rnp_key_handle_t();
++        const flags =
++          RNPLib.RNP_KEY_SUBKEYS_ONLY |
++          RNPLib.RNP_KEY_PREFER_PQC_ENC_SUBKEY;
++        const rv = RNPLib.rnp_key_get_default_key(
++          primary,
++          str_encrypt,
++          flags,
++          useSubkey.address()
++        );
++        if (
++          rv &&
++          rv != RNPLib.RNP_ERROR_KEY_NOT_FOUND &&
++          rv != RNPLib.RNP_ERROR_NO_SUITABLE_KEY
++        ) {
++          throw new Error("rnp_key_get_default_key failed: " + rv);
++        }
++      } else {
++        useSubkey = this.getSuitableSubkey(key, str_encrypt);
++      }
+ 
+-    if (
+-      RNPLib.rnp_op_encrypt_add_recipient(op, use_sub != null ? use_sub : key)
+-    ) {
+-      throw new Error("rnp_op_encrypt_add_recipient sender failed");
+-    }
+-    if (use_sub) {
+-      RNPLib.rnp_key_handle_destroy(use_sub);
++      const primary = primaryKey?.isNull() === false ? primaryKey : key;
++      const hasSubkey = useSubkey && !useSubkey.isNull();
++      const recipient = hasSubkey ? useSubkey : primary;
++      if (!hasSubkey && !this.isKeyUsableFor(primary, str_encrypt)) {
++        throw new Error("no suitable subkey found for " + str_encrypt);
++      }
++      if (RNPLib.rnp_op_encrypt_add_recipient(op, recipient)) {
++        throw new Error("rnp_op_encrypt_add_recipient sender failed");
++      }
++    } finally {
++      if (primaryKey && !primaryKey.isNull()) {
++        RNPLib.rnp_key_handle_destroy(primaryKey);
++      }
++      if (useSubkey && !useSubkey.isNull()) {
++        RNPLib.rnp_key_handle_destroy(useSubkey);
++      }
+     }
+   },
+ 
+@@ -3937,6 +4010,10 @@ export var RNP = {
+       throw new Error("rnp_output_to_memory failed");
+     }
+ 
++    const enablePqc = Services.prefs.getBoolPref(
++      "mail.openpgp.pqc",
++      false
++    );
+     let op;
+     if (args.encrypt) {
+       op = new RNPLib.rnp_op_encrypt_t();
+@@ -3945,6 +4022,11 @@ export var RNP = {
+       ) {
+         throw new Error("rnp_op_encrypt_create failed");
+       }
++      if (enablePqc) {
++        if (RNPLib.rnp_op_encrypt_enable_pkesk_v6(op)) {
++          throw new Error("rnp_op_encrypt_enable_pkesk_v6 failed");
++        }
++      }
+     } else if (args.sign && !args.senderKeyIsExternal) {
+       op = new RNPLib.rnp_op_sign_t();
+       if (args.sigTypeClear) {
+@@ -4114,9 +4196,7 @@ export var RNP = {
+           }
+         }
+ 
+-        // Don't use AEAD as long as RNP uses v5 packets which aren't
+-        // widely compatible with other clients.
+-        if (RNPLib.rnp_op_encrypt_set_aead(op, "NONE")) {
++        if (!enablePqc && RNPLib.rnp_op_encrypt_set_aead(op, "NONE")) {
+           throw new Error("rnp_op_encrypt_set_aead failed");
+         }
+ 
+@@ -5435,7 +5515,7 @@ export var RNP = {
+ 
+   getSupportedFeatureFlags() {
+     // Update this bitmask whenever additional features are supported.
+-    return RNPLib.PGP_KEY_FEATURE_MDC;
++    return RNPLib.PGP_KEY_FEATURE_MDC | RNPLib.PGP_KEY_FEATURE_SEIPDV2;
+   },
+ 
+   /**
+diff --git a/comm/mail/extensions/openpgp/content/modules/RNPLib.sys.mjs b/comm/mail/extensions/openpgp/content/modules/RNPLib.sys.mjs
+index 4630c002e0..750ea9030a 100644
+--- a/comm/mail/extensions/openpgp/content/modules/RNPLib.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/RNPLib.sys.mjs
+@@ -1116,6 +1116,14 @@ function enableRNPLibJS() {
+       ctypes.char.ptr.ptr
+     ),
+ 
++    rnp_key_get_version: librnp.declare(
++      "rnp_key_get_version",
++      abi,
++      rnp_result_t,
++      rnp_key_handle_t,
++      ctypes.uint32_t.ptr
++    ),
++
+     rnp_key_get_alg: librnp.declare(
+       "rnp_key_get_alg",
+       abi,
+@@ -1172,6 +1180,16 @@ function enableRNPLibJS() {
+       rnp_key_handle_t.ptr
+     ),
+ 
++    rnp_key_get_default_key: librnp.declare(
++      "rnp_key_get_default_key",
++      abi,
++      rnp_result_t,
++      rnp_key_handle_t,
++      ctypes.char.ptr,
++      ctypes.uint32_t,
++      rnp_key_handle_t.ptr
++    ),
++
+     rnp_key_get_creation: librnp.declare(
+       "rnp_key_get_creation",
+       abi,
+@@ -1331,6 +1349,13 @@ function enableRNPLibJS() {
+       ctypes.char.ptr
+     ),
+ 
++    rnp_op_generate_set_v6_key: librnp.declare(
++      "rnp_op_generate_set_v6_key",
++      abi,
++      rnp_result_t,
++      rnp_op_generate_t
++    ),
++
+     rnp_op_generate_set_protection_password: librnp.declare(
+       "rnp_op_generate_set_protection_password",
+       abi,
+@@ -1441,6 +1466,13 @@ function enableRNPLibJS() {
+       rnp_output_t
+     ),
+ 
++    rnp_op_encrypt_enable_pkesk_v6: librnp.declare(
++      "rnp_op_encrypt_enable_pkesk_v6",
++      abi,
++      rnp_result_t,
++      rnp_op_encrypt_t
++    ),
++
+     rnp_op_sign_cleartext_create: librnp.declare(
+       "rnp_op_sign_cleartext_create",
+       abi,
+@@ -2099,6 +2131,9 @@ function enableRNPLibJS() {
+     RNP_KEY_REMOVE_SECRET: 2,
+     RNP_KEY_REMOVE_SUBKEYS: 4,
+ 
++    RNP_KEY_SUBKEYS_ONLY: 1,
++    RNP_KEY_PREFER_PQC_ENC_SUBKEY: 2,
++
+     RNP_KEY_EXPORT_ARMORED: 1,
+     RNP_KEY_EXPORT_PUBLIC: 2,
+     RNP_KEY_EXPORT_SECRET: 4,
+@@ -2133,6 +2168,7 @@ function enableRNPLibJS() {
+     PGP_KEY_FEATURE_MDC: 1,
+     PGP_KEY_FEATURE_AEAD: 2,
+     PGP_KEY_FEATURE_V5: 4,
++    PGP_KEY_FEATURE_SEIPDV2: 8,
+ 
+     /* Common error codes */
+     RNP_ERROR_GENERIC: 0x10000000, // 268435456
+diff --git a/comm/mail/extensions/openpgp/content/modules/key.sys.mjs b/comm/mail/extensions/openpgp/content/modules/key.sys.mjs
+index 815c46848d..f23f5ff4ae 100644
+--- a/comm/mail/extensions/openpgp/content/modules/key.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/key.sys.mjs
+@@ -24,11 +24,8 @@ export var EnigmailKey = {
+    */
+   formatFpr(fingerprint) {
+     let r = "";
+-    const fpr = fingerprint.match(
+-      /(....)(....)(....)(....)(....)(....)(....)(....)(....)?(....)?/
+-    );
+-    if (fpr && fpr.length > 2) {
+-      fpr.shift();
++    const fpr = fingerprint.match(/.{1,4}/g);
++    if (fpr) {
+       r = fpr.join(" ");
+     }
+ 
+diff --git a/comm/mail/extensions/openpgp/content/modules/keyObj.sys.mjs b/comm/mail/extensions/openpgp/content/modules/keyObj.sys.mjs
+index fa4e4c9409..51e3a51b3e 100644
+--- a/comm/mail/extensions/openpgp/content/modules/keyObj.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/keyObj.sys.mjs
+@@ -41,6 +41,13 @@ export class EnigmailKeyObj {
+    */
+   fpr = "";
+ 
++  /**
++   * OpenPGP key version.
++   *
++   * @type {integer}
++   */
++  version = 0;
++
+   /**
+    * Expiry date as printable string
+    *
+@@ -219,6 +226,7 @@ export class EnigmailKeyObj {
+       "userIds",
+       "subKeys",
+       "fpr",
++      "version",
+       "secretAvailable",
+       "secretMaterial",
+       "photoAvailable",
+diff --git a/comm/mail/extensions/openpgp/content/modules/keyserver.sys.mjs b/comm/mail/extensions/openpgp/content/modules/keyserver.sys.mjs
+index e310a7cd2a..a7ab56b9f6 100644
+--- a/comm/mail/extensions/openpgp/content/modules/keyserver.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/keyserver.sys.mjs
+@@ -950,7 +950,7 @@ const accessVksServer = {
+           ) {
+             lookup = "/vks/v1/by-keyid/" + searchTerm;
+           } else if (
+-            searchTerm.length == 40 &&
++            (searchTerm.length == 40 || searchTerm.length == 64) &&
+             searchTerm.search(/^[A-F0-9]+$/) === 0
+           ) {
+             lookup = "/vks/v1/by-fingerprint/" + searchTerm;
+diff --git a/comm/mail/extensions/openpgp/content/modules/sqliteDb.sys.mjs b/comm/mail/extensions/openpgp/content/modules/sqliteDb.sys.mjs
+index 31cf63cb6f..b45eec96f4 100644
+--- a/comm/mail/extensions/openpgp/content/modules/sqliteDb.sys.mjs
++++ b/comm/mail/extensions/openpgp/content/modules/sqliteDb.sys.mjs
+@@ -62,8 +62,12 @@ export var PgpSqliteDb2 = {
+    * @param {string} fingerprint
+    */
+   async getFingerprintAcceptance(conn, fingerprint) {
+-    // 40 is for modern fingerprints, 32 for older fingerprints.
+-    if (fingerprint.length != 40 && fingerprint.length != 32) {
++    // 64 is for v5/v6 fingerprints, 40 for v4, and 32 for older fingerprints.
++    if (
++      fingerprint.length != 64 &&
++      fingerprint.length != 40 &&
++      fingerprint.length != 32
++    ) {
+       throw new Error(`Invalid fingerprint: ${fingerprint}`);
+     }
+ 
+diff --git a/comm/mail/extensions/openpgp/content/ui/enigmailKeyManager.js b/comm/mail/extensions/openpgp/content/ui/enigmailKeyManager.js
+index b4099384d5..d8e003a806 100644
+--- a/comm/mail/extensions/openpgp/content/ui/enigmailKeyManager.js
++++ b/comm/mail/extensions/openpgp/content/ui/enigmailKeyManager.js
+@@ -857,6 +857,14 @@ function determineHiddenKeys(keyObj, showInvalidKeys, showOthersKeys) {
+   return show;
+ }
+ 
++function getFullFingerprintSearchTerm(searchTerm) {
++  const fingerprint = searchTerm.replaceAll(" ", "");
++  return [40, 64].includes(fingerprint.length) &&
++    /^[0-9a-f]+$/.test(fingerprint)
++    ? fingerprint
++    : null;
++}
++
+ function getSortDirection() {
+   return gUserList.getAttribute("sortDirection") == "ascending" ? 1 : -1;
+ }
+@@ -1291,30 +1299,7 @@ var gKeyListView = {
+     searchTxt = searchTxt.toLowerCase();
+     searchTxt = searchTxt.replace(/^(\s*)(.*)/, "$2").replace(/\s+$/, ""); // trim spaces
+ 
+-    // check if we search for a full fingerprint (with optional spaces every 4 letters)
+-    var fpr = null;
+-    if (searchTxt.length == 49) {
+-      // possible fingerprint with spaces?
+-      if (
+-        searchTxt.search(/^[0-9a-f ]*$/) >= 0 &&
+-        searchTxt[4] == " " &&
+-        searchTxt[9] == " " &&
+-        searchTxt[14] == " " &&
+-        searchTxt[19] == " " &&
+-        searchTxt[24] == " " &&
+-        searchTxt[29] == " " &&
+-        searchTxt[34] == " " &&
+-        searchTxt[39] == " " &&
+-        searchTxt[44] == " "
+-      ) {
+-        fpr = searchTxt.replace(/ /g, "");
+-      }
+-    } else if (searchTxt.length == 40) {
+-      // possible fingerprint without spaces
+-      if (searchTxt.search(/^[0-9a-f ]*$/) >= 0) {
+-        fpr = searchTxt;
+-      }
+-    }
++    const fpr = getFullFingerprintSearchTerm(searchTxt);
+ 
+     const keyShowList = [];
+ 
+diff --git a/comm/mail/extensions/openpgp/content/ui/keyWizard.js b/comm/mail/extensions/openpgp/content/ui/keyWizard.js
+index ffe53f7f4a..07846d963c 100644
+--- a/comm/mail/extensions/openpgp/content/ui/keyWizard.js
++++ b/comm/mail/extensions/openpgp/content/ui/keyWizard.js
+@@ -79,6 +79,9 @@ async function initKeyWiz() {
+       kDialog.getButton("accept").disabled = !event.target.checkValidity();
+     });
+   }
++  if (Services.prefs.getBoolPref("mail.openpgp.pqc", false)) {
++    document.getElementById("keyType_pqc").hidden = false;
++  }
+ 
+   // After the dialog is visible, disable the event listeners causing it to
+   // close when clicking on the overlay or hitting the Esc key, and remove the
+@@ -511,7 +514,7 @@ function onExpirationChange(event) {
+  * @param {Event} event - The DOM Event.
+  */
+ function onKeyTypeChange(event) {
+-  document.getElementById("keySize").disabled = event.target.value == "ECC";
++  document.getElementById("keySize").disabled = event.target.value != "RSA";
+ }
+ 
+ /**
+diff --git a/comm/mail/extensions/openpgp/content/ui/keyWizard.xhtml b/comm/mail/extensions/openpgp/content/ui/keyWizard.xhtml
+index 735e43be28..70529996cb 100644
+--- a/comm/mail/extensions/openpgp/content/ui/keyWizard.xhtml
++++ b/comm/mail/extensions/openpgp/content/ui/keyWizard.xhtml
+@@ -332,6 +332,13 @@
+                       data-l10n-id="openpgp-keygen-type-ecc"
+                       oncommand="onKeyTypeChange(event)"
+                     />
++                    <menuitem
++                      id="keyType_pqc"
++                      value="PQC"
++                      data-l10n-id="openpgp-keygen-type-pqc"
++                      oncommand="onKeyTypeChange(event)"
++                      hidden="true"
++                    />
+                   </menupopup>
+                 </menulist>
+               </hbox>
+diff --git a/comm/mail/extensions/openpgp/test/unit/rnp/test_encryptAndOrSign.js b/comm/mail/extensions/openpgp/test/unit/rnp/test_encryptAndOrSign.js
+index b033c5b909..b18a34a2ab 100644
+--- a/comm/mail/extensions/openpgp/test/unit/rnp/test_encryptAndOrSign.js
++++ b/comm/mail/extensions/openpgp/test/unit/rnp/test_encryptAndOrSign.js
+@@ -246,6 +246,49 @@ add_task(async function testEncryptAndOrSignResults() {
+   }
+ });
+ 
++add_task(async function testPqcModeUsesMdcForConventionalRecipients() {
++  Services.prefs.setBoolPref("mail.openpgp.pqc", true);
++  try {
++    const result = {};
++    const encrypted = await RNP.encryptAndOrSign(
++      "Testing\n",
++      {
++        aliasKeys: new Map(),
++        armor: true,
++        bcc: [],
++        encrypt: true,
++        encryptToSender: true,
++        sender: "0xFBFCC82A015E7330",
++        senderKeyIsExternal: false,
++        sigTypeClear: false,
++        sigTypeDetached: false,
++        sign: false,
++        signatureHash: "SHA256",
++        to: ["<alice@openpgp.example>"],
++      },
++      result
++    );
++
++    Assert.equal(result.exitCode, 0, "encryption succeeded");
++    const decryptResult = await RNP.decrypt(encrypted, {
++      fromAddr: "",
++      maxOutputLength: encrypted.length * 100,
++      msgDate: null,
++      noOutput: false,
++      uiFlags: EnigmailConstants.UI_PGP_MIME,
++      verifyOnly: false,
++    });
++    Assert.equal(decryptResult.exitCode, 0, "decryption succeeded");
++    Assert.equal(
++      decryptResult.protectionMode,
++      "cfb-mdc",
++      "conventional recipients use MDC protection"
++    );
++  } finally {
++    Services.prefs.clearUserPref("mail.openpgp.pqc");
++  }
++});
++
+ /**
+  * Test that we correctly produce binary files when decrypting,
+  * for both binary OpenPGP input and ASCII armored OpenPGP input.
+diff --git a/comm/mail/extensions/openpgp/test/unit/rnp/test_pqc.js b/comm/mail/extensions/openpgp/test/unit/rnp/test_pqc.js
+new file mode 100644
+index 0000000000..efb86ea84e
+--- /dev/null
++++ b/comm/mail/extensions/openpgp/test/unit/rnp/test_pqc.js
+@@ -0,0 +1,303 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++"use strict";
++
++const { RNP } = ChromeUtils.importESModule(
++  "chrome://openpgp/content/modules/RNP.sys.mjs"
++);
++const { EnigmailConstants } = ChromeUtils.importESModule(
++  "chrome://openpgp/content/modules/constants.sys.mjs"
++);
++const { EnigmailKeyRing } = ChromeUtils.importESModule(
++  "chrome://openpgp/content/modules/keyRing.sys.mjs"
++);
++const { EnigmailKeyServer } = ChromeUtils.importESModule(
++  "chrome://openpgp/content/modules/keyserver.sys.mjs"
++);
++const { OpenPGPMasterpass } = ChromeUtils.importESModule(
++  "chrome://openpgp/content/modules/masterpass.sys.mjs"
++);
++const { OpenPGPTestUtils } = ChromeUtils.importESModule(
++  "resource://testing-common/mail/OpenPGPTestUtils.sys.mjs"
++);
++
++const pqcDataDir =
++  "../../../../../../third_party/rnp/src/tests/data/draft-ietf-openpgp-pqc";
++const data = "Testing\n";
++
++const vectors = [
++  {
++    name: "ML-DSA-65",
++    publicKey: "v6-mldsa-65-sample-pk.asc",
++    signature: "v6-mldsa-65-sample-signature.asc",
++  },
++  {
++    name: "ML-DSA-87",
++    publicKey: "v6-mldsa-87-sample-pk.asc",
++    signature: "v6-mldsa-87-sample-signature.asc",
++  },
++  {
++    name: "SLH-DSA-SHAKE-128f",
++    publicKey: "v6-slhdsa-128f-sample-pk.asc",
++    signature: "v6-slhdsa-128f-sample-signature.asc",
++  },
++  {
++    name: "SLH-DSA-SHAKE-128s",
++    publicKey: "v6-slhdsa-128s-sample-pk.asc",
++    signature: "v6-slhdsa-128s-sample-signature.asc",
++  },
++  {
++    name: "SLH-DSA-SHAKE-256s",
++    publicKey: "v6-slhdsa-256s-sample-pk.asc",
++    signature: "v6-slhdsa-256s-sample-signature.asc",
++  },
++];
++
++add_setup(async function () {
++  do_get_profile();
++
++  await OpenPGPTestUtils.initOpenPGP();
++});
++
++add_task(async function testImportPqcPublicKey() {
++  Services.prefs.setBoolPref("mail.openpgp.pqc", true);
++
++  let fingerprint = null;
++  try {
++    const publicKey = await IOUtils.readUTF8(
++      do_get_file(`${pqcDataDir}/v6-mldsa-65-sample-pk.asc`).path
++    );
++    const result = await RNP.importPubkeyBlockAutoAcceptImpl(
++      null,
++      publicKey,
++      "unverified"
++    );
++    Assert.equal(result.exitCode, 0, "PQC public key imported");
++    Assert.equal(result.importedKeys.length, 1, "one PQC key imported");
++
++    const key = EnigmailKeyRing.getKeyById(result.importedKeys[0]);
++    Assert.ok(key, "imported PQC key is in the key ring");
++    fingerprint = key.fpr;
++    Assert.equal(key.version, 6, "imported key uses OpenPGP v6");
++    Assert.equal(fingerprint.length, 64, "imported key has a v6 fingerprint");
++    Assert.equal(
++      key.fprFormatted.replaceAll(" ", ""),
++      fingerprint,
++      "the complete v6 fingerprint is formatted"
++    );
++
++    const encryptResult = {};
++    await RNP.encryptAndOrSign(
++      data,
++      {
++        aliasKeys: new Map(),
++        armor: true,
++        bcc: [],
++        encrypt: true,
++        encryptToSender: false,
++        sender: "",
++        senderKeyIsExternal: false,
++        sigTypeClear: false,
++        sigTypeDetached: false,
++        sign: false,
++        signatureHash: "SHA256",
++        to: ["<pqc-test-key@example.com>"],
++      },
++      encryptResult
++    );
++    Assert.equal(encryptResult.exitCode, 0, "PQC encryption succeeded");
++  } finally {
++    if (fingerprint) {
++      await RNP.deleteKey(fingerprint, false);
++      EnigmailKeyRing.clearCache();
++    }
++    Services.prefs.clearUserPref("mail.openpgp.pqc");
++  }
++});
++
++add_task(async function testImportAndUsePqcSecretKey() {
++  Services.prefs.setBoolPref("mail.openpgp.pqc", true);
++
++  Assert.ok(
++    RNP.getSupportedFeatureFlags() & 8,
++    "SEIPDv2 is recognized as a supported key feature"
++  );
++
++  let keyId = null;
++  try {
++    const keyIds = await OpenPGPTestUtils.importPrivateKey(
++      null,
++      do_get_file(`${pqcDataDir}/v6-mldsa-65-sample-sk.asc`)
++    );
++    Assert.equal(keyIds.length, 1, "one PQC secret key imported");
++    [keyId] = keyIds;
++
++    const encrypted = await IOUtils.readUTF8(
++      do_get_file(`${pqcDataDir}/v6-mldsa-65-sample-message.asc`).path
++    );
++    const decryptResult = await RNP.decrypt(encrypted, {
++      fromAddr: "",
++      maxOutputLength: encrypted.length * 100,
++      msgDate: null,
++      noOutput: false,
++      uiFlags: EnigmailConstants.UI_PGP_MIME,
++      verifyOnly: false,
++    });
++    Assert.equal(decryptResult.exitCode, 0, "PQC decryption succeeded");
++    Assert.equal(decryptResult.decryptedData, data, "PQC decrypted plaintext matches");
++    Assert.notEqual(
++      decryptResult.encToDetails.myRecipKey.keyId,
++      "0000000000000000",
++      "PQC decryption reports the recipient key ID"
++    );
++
++    const signResult = {};
++    const signature = await RNP.encryptAndOrSign(
++      data,
++      {
++        aliasKeys: new Map(),
++        armor: true,
++        bcc: [],
++        encrypt: false,
++        encryptToSender: false,
++        sender: keyId,
++        senderKeyIsExternal: false,
++        sigTypeClear: false,
++        sigTypeDetached: true,
++        sign: true,
++        signatureHash: "SHA256",
++        to: [],
++      },
++      signResult
++    );
++    Assert.equal(signResult.exitCode, 0, "PQC signing succeeded");
++
++    const verifyResult = await RNP.verifyDetached(
++      data,
++      signature,
++      "pqc-test-key@example.com",
++      null
++    );
++    Assert.equal(verifyResult.exitCode, 0, "PQC signature verified");
++    Assert.equal(
++      verifyResult.keyId,
++      keyId.replace(/^0x/, ""),
++      "PQC signature reports the signer key ID"
++    );
++  } finally {
++    if (keyId) {
++      await OpenPGPTestUtils.removeKeyById(keyId, true);
++    }
++    Services.prefs.clearUserPref("mail.openpgp.pqc");
++  }
++});
++
++add_task(function testV6FingerprintKeyserverUrl() {
++  const fingerprint = "A".repeat(64);
++  Assert.equal(
++    EnigmailKeyServer.serverReqURL(
++      `0x${fingerprint}`,
++      "vks://keys.openpgp.org"
++    ),
++    `https://keys.openpgp.org/vks/v1/by-fingerprint/${fingerprint}`,
++    "v6 fingerprints use the VKS fingerprint endpoint"
++  );
++});
++
++add_task(async function testVerifyPqcSignatures() {
++  for (const vector of vectors) {
++    const publicKey = await IOUtils.readUTF8(
++      do_get_file(`${pqcDataDir}/${vector.publicKey}`).path
++    );
++    Assert.equal(
++      RNP.importToFFI(undefined, publicKey, true, false),
++      0,
++      `${vector.name}: public key imported`
++    );
++
++    const signature = await IOUtils.readUTF8(
++      do_get_file(`${pqcDataDir}/${vector.signature}`).path
++    );
++    const result = await RNP.verifyDetached(
++      data,
++      signature,
++      "pqc@example.test",
++      null
++    );
++    Assert.equal(result.exitCode, 0, `${vector.name}: signature verified`);
++  }
++});
++
++add_task(async function testGenerateAndUsePqcKey() {
++  Services.prefs.setBoolPref("mail.openpgp.pqc", true);
++
++  let fingerprint = null;
++  try {
++    const keyId = await RNP.genKey(
++      "PQC Generated <pqc-generated@example.test>",
++      "PQC",
++      0,
++      0,
++      await OpenPGPMasterpass.retrieveOpenPGPPassword()
++    );
++    Assert.ok(keyId, "PQC key generated");
++
++    await RNP.saveKeyRings();
++    EnigmailKeyRing.clearCache();
++
++    const key = EnigmailKeyRing.getKeyById(keyId);
++    Assert.ok(key, "generated PQC key is in the key ring");
++    fingerprint = key.fpr;
++    Assert.equal(key.version, 6, "generated key uses OpenPGP v6");
++    Assert.equal(fingerprint.length, 64, "generated key has a v6 fingerprint");
++    Assert.ok(
++      key.algoSym.startsWith("ML-DSA-65"),
++      "generated key uses ML-DSA-65"
++    );
++    Assert.equal(key.subKeys.length, 1, "generated key has one subkey");
++    Assert.ok(
++      key.subKeys[0].algoSym.startsWith("ML-KEM-768"),
++      "generated subkey uses ML-KEM-768"
++    );
++
++    const encryptResult = {};
++    const encrypted = await RNP.encryptAndOrSign(
++      data,
++      {
++        aliasKeys: new Map(),
++        armor: true,
++        bcc: [],
++        encrypt: true,
++        encryptToSender: false,
++        sender: "",
++        senderKeyIsExternal: false,
++        sigTypeClear: false,
++        sigTypeDetached: false,
++        sign: false,
++        signatureHash: "SHA256",
++        to: ["<pqc-generated@example.test>"],
++      },
++      encryptResult
++    );
++    Assert.equal(encryptResult.exitCode, 0, "PQC encryption succeeded");
++
++    const { exitCode, decryptedData } = await RNP.decrypt(encrypted, {
++      fromAddr: "",
++      maxOutputLength: encrypted.length * 100,
++      msgDate: null,
++      noOutput: false,
++      uiFlags: EnigmailConstants.UI_PGP_MIME,
++      verifyOnly: false,
++    });
++    Assert.equal(exitCode, 0, "PQC decryption succeeded");
++    Assert.equal(decryptedData, data, "PQC decrypted plaintext matches");
++  } finally {
++    if (fingerprint) {
++      await RNP.deleteKey(fingerprint, true);
++      EnigmailKeyRing.clearCache();
++    }
++    Services.prefs.clearUserPref("mail.openpgp.pqc");
++  }
++});
+diff --git a/comm/mail/extensions/openpgp/test/unit/rnp/xpcshell.toml b/comm/mail/extensions/openpgp/test/unit/rnp/xpcshell.toml
+index eab0b1321d..c71fe193e5 100644
+--- a/comm/mail/extensions/openpgp/test/unit/rnp/xpcshell.toml
++++ b/comm/mail/extensions/openpgp/test/unit/rnp/xpcshell.toml
+@@ -1,6 +1,7 @@
+ [DEFAULT]
+ support-files = [
+   "../../../../../test/browser/openpgp/data/keys/*",
++  "../../../../../../third_party/rnp/src/tests/data/draft-ietf-openpgp-pqc/*",
+   "../../../../../../mailnews/test/data/*",
+   "data/*",
+ ]
+@@ -12,6 +13,8 @@ tags = ["openpgp"]
+ 
+ ["test_encryptAndOrSign.js"]
+ 
++["test_pqc.js"]
++
+ ["test_revocation.js"]
+ 
+ ["test_secretKeys.js"]
+diff --git a/comm/mail/locales/en-US/messenger/openpgp/keyWizard.ftl b/comm/mail/locales/en-US/messenger/openpgp/keyWizard.ftl
+index 3f5b76b465..e009c6b0ff 100644
+--- a/comm/mail/locales/en-US/messenger/openpgp/keyWizard.ftl
++++ b/comm/mail/locales/en-US/messenger/openpgp/keyWizard.ftl
+@@ -80,6 +80,9 @@ openpgp-keygen-type-rsa =
+ openpgp-keygen-type-ecc =
+     .label = ECC (Elliptic Curve)
+ 
++openpgp-keygen-type-pqc =
++    .label = PQC (ML-DSA + ML-KEM)
++
+ openpgp-keygen-button = Generate key
+ 
+ openpgp-keygen-progress-title = Generating your new OpenPGP Key…
+diff --git a/comm/mail/test/browser/openpgp/browser_keyWizard.js b/comm/mail/test/browser/openpgp/browser_keyWizard.js
+index a8ba4f2f41..dbcf2ff993 100644
+--- a/comm/mail/test/browser/openpgp/browser_keyWizard.js
++++ b/comm/mail/test/browser/openpgp/browser_keyWizard.js
+@@ -414,6 +414,21 @@ add_task(async function check_for_go_back_button() {
+ 
+   const kmWindow = await keyManagerPromise;
+ 
++  const fingerprint40 = "0123456789abcdef".repeat(2) + "01234567";
++  const fingerprint64 = "0123456789abcdef".repeat(4);
++  Assert.equal(
++    kmWindow.getFullFingerprintSearchTerm(fingerprint40),
++    fingerprint40,
++    "An unformatted v4 fingerprint should be recognized"
++  );
++  Assert.equal(
++    kmWindow.getFullFingerprintSearchTerm(
++      fingerprint64.match(/.{4}/g).join(" ")
++    ),
++    fingerprint64,
++    "A formatted v6 fingerprint should be recognized"
++  );
++
+   const dialogPromise = BrowserTestUtils.promiseAlertDialog(
+     null,
+     "chrome://openpgp/content/ui/keyWizard.xhtml",
+diff --git a/comm/third_party/rnp/src/lib/fingerprint.cpp b/comm/third_party/rnp/src/lib/fingerprint.cpp
+index ca3b861202..bfe50788ed 100644
+--- a/comm/third_party/rnp/src/lib/fingerprint.cpp
++++ b/comm/third_party/rnp/src/lib/fingerprint.cpp
+@@ -42,6 +42,12 @@ Fingerprint::Fingerprint() : keyid_({})
+ Fingerprint::Fingerprint(const uint8_t *data, size_t size) : Fingerprint()
+ {
+     fp_.assign(data, data + size);
++
++    if (size == PGP_FINGERPRINT_V4_SIZE) {
++        memcpy(keyid_.data(), fp_.data() + size - keyid_.size(), keyid_.size());
++    } else if (size == PGP_FINGERPRINT_V5_SIZE) {
++        memcpy(keyid_.data(), fp_.data(), keyid_.size());
++    }
+ }
+ 
+ Fingerprint::Fingerprint(const pgp_key_pkt_t &key)
+diff --git a/comm/third_party/rnp/src/lib/rnp.cpp b/comm/third_party/rnp/src/lib/rnp.cpp
+index 953fe50462..85c43b96f0 100644
+--- a/comm/third_party/rnp/src/lib/rnp.cpp
++++ b/comm/third_party/rnp/src/lib/rnp.cpp
+@@ -3199,7 +3199,14 @@ static void
+ recipient_handle_from_pk_sesskey(rnp_recipient_handle_st &handle,
+                                  const pgp_pk_sesskey_t & sesskey)
+ {
+-    handle.keyid = sesskey.key_id;
++#if defined(ENABLE_CRYPTO_REFRESH)
++    if (sesskey.version == PGP_PKSK_V6) {
++        handle.keyid = sesskey.fp.keyid();
++    } else
++#endif
++    {
++        handle.keyid = sesskey.key_id;
++    }
+     handle.palg = sesskey.alg;
+ }
+ 

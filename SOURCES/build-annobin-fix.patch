@@ -1,7 +1,6 @@
-diff -up thunderbird-140.5.0/comm/third_party/rnp/moz.build.annobin-fix thunderbird-140.5.0/comm/third_party/rnp/moz.build
---- thunderbird-140.5.0/comm/third_party/rnp/moz.build.annobin-fix	2025-12-15 09:23:29.339518965 +0100
-+++ thunderbird-140.5.0/comm/third_party/rnp/moz.build	2025-12-15 09:24:18.638422349 +0100
-@@ -42,6 +42,10 @@ COMPILE_FLAGS["WARNINGS_CFLAGS"] += [
+--- thunderbird-153.2.0/comm/third_party/rnp/moz.build.annobin-fix
++++ thunderbird-153.2.0/comm/third_party/rnp/moz.build
+@@ -42,6 +42,10 @@
      "-Wno-unused-parameter",
      "-Wno-missing-field-initializers",
  ]
@@ -10,5 +9,17 @@ diff -up thunderbird-140.5.0/comm/third_party/rnp/moz.build.annobin-fix thunderb
 +    "-fstack-protector-strong",
 +]
  
- if CONFIG["CC_TYPE"] == "clang-cl":
-     CXXFLAGS += [
+ LOCAL_INCLUDES += [
+     "include",
+@@ -218,10 +222,10 @@
+     ]
+ if CONFIG["MZLA_LIBRNP_BACKEND"] == "openssl":
+     SOURCES += [
+-        "src/lib/crypto/dsa_common.cpp",
+         "src/lib/crypto/cipher.cpp",
+         "src/lib/crypto/cipher_ossl.cpp",
+         "src/lib/crypto/dl_ossl.cpp",
++        "src/lib/crypto/dsa_common.cpp",
+         "src/lib/crypto/dsa_ossl.cpp",
+         "src/lib/crypto/ec_curves.cpp",
+         "src/lib/crypto/ec_ossl.cpp",
